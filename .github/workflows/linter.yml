@@ -59,3 +59,5 @@ jobs:
           VALIDATE_JSON: false
           VALIDATE_YAML: false
           VALIDATE_MARKDOWN: false
+          VALIDATE_ENV: false
+          VALIDATE_NATURAL_LANGUAGE: false
