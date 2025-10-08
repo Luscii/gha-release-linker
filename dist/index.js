@@ -47575,6 +47575,7 @@ const {
   mergeConfig
 } = axios;
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const LINEAR_API_URL$2 = 'https://api.linear.app/graphql';
 const LINEAR_API_KEY$3 = coreExports.getInput('LINEAR_API_KEY');
 /**
@@ -47610,10 +47611,15 @@ async function createLinearAttachment(issueId, url, versionName) {
                 url,
                 title: `v${versionName}`,
                 subtitle: `Released in version ${versionName}`,
-                versionName,
-            },
-        }, { headers: { 'Content-Type': 'application/json', 'Authorization': LINEAR_API_KEY$3 } });
-        const data = response.data.data;
+                versionName
+            }
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$3
+            }
+        });
+        const { data } = response;
         if (data.attachmentCreate && data.attachmentCreate.success) {
             console.log(`Successfully attached "${versionName}" to Linear issue`);
             return true;
@@ -47644,7 +47650,9 @@ async function createLinearAttachment(issueId, url, versionName) {
 const LINEAR_API_URL$1 = 'https://api.linear.app/graphql';
 const LINEAR_API_KEY$2 = coreExports.getInput('LINEAR_API_KEY');
 async function ensureReleaseLabel(versionName, repoName) {
-    const cleanVersion = versionName.startsWith('v') ? versionName.slice(1) : versionName;
+    const cleanVersion = versionName.startsWith('v')
+        ? versionName.slice(1)
+        : versionName;
     const parentName = `${repoName} releases`;
     const findParentQuery = `
       query FindParent($name: String!) {
@@ -47655,7 +47663,12 @@ async function ensureReleaseLabel(versionName, repoName) {
     `;
     let parentId = null;
     try {
-        const findParentResp = await axios.post(LINEAR_API_URL$1, { query: findParentQuery, variables: { name: parentName } }, { headers: { 'Content-Type': 'application/json', 'Authorization': LINEAR_API_KEY$2 } });
+        const findParentResp = await axios.post(LINEAR_API_URL$1, { query: findParentQuery, variables: { name: parentName } }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$2
+            }
+        });
         const nodes = findParentResp?.data?.data?.issueLabels?.nodes || [];
         if (nodes.length > 0) {
             parentId = nodes[0].id;
@@ -47669,9 +47682,9 @@ async function ensureReleaseLabel(versionName, repoName) {
             console.error('Failed to query parent label group in Linear:', error);
         }
         if (typeof error === 'object' && error !== null && 'response' in error) {
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response data:', error.response?.data);
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response status:', error.response?.status);
         }
     }
@@ -47685,7 +47698,12 @@ async function ensureReleaseLabel(versionName, repoName) {
           }
         `;
         try {
-            const createParentResp = await axios.post(LINEAR_API_URL$1, { query: createParentMutation, variables: { name: parentName } }, { headers: { 'Content-Type': 'application/json', 'Authorization': LINEAR_API_KEY$2 } });
+            const createParentResp = await axios.post(LINEAR_API_URL$1, { query: createParentMutation, variables: { name: parentName } }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: LINEAR_API_KEY$2
+                }
+            });
             const payload = createParentResp?.data?.data?.issueLabelCreate;
             if (payload && payload.success) {
                 parentId = payload.issueLabel.id;
@@ -47698,9 +47716,9 @@ async function ensureReleaseLabel(versionName, repoName) {
         catch (error) {
             console.error('An error occurred while creating parent label group in Linear:', error instanceof Error ? error.message : error);
             if (typeof error === 'object' && error !== null && 'response' in error) {
-                // @ts-ignore
+                // @ts-expect-error -ignore
                 console.error('Response data:', error.response?.data);
-                // @ts-ignore
+                // @ts-expect-error -ignore
                 console.error('Response status:', error.response?.status);
             }
             return null;
@@ -47709,7 +47727,9 @@ async function ensureReleaseLabel(versionName, repoName) {
     return await ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repoName);
 }
 async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repoName) {
-    const versionWithRepo = repoName ? `${cleanVersion} (${repoName})` : cleanVersion;
+    const versionWithRepo = repoName
+        ? `${cleanVersion} (${repoName})`
+        : cleanVersion;
     const findChildQuery = `
       query FindChild($name: String!) {
         issueLabels(filter: { name: { eq: $name } }) {
@@ -47718,9 +47738,14 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
       }
     `;
     try {
-        const findChildResp = await axios.post(LINEAR_API_URL$1, { query: findChildQuery, variables: { name: versionWithRepo } }, { headers: { 'Content-Type': 'application/json', 'Authorization': LINEAR_API_KEY$2 } });
+        const findChildResp = await axios.post(LINEAR_API_URL$1, { query: findChildQuery, variables: { name: versionWithRepo } }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$2
+            }
+        });
         const nodes = findChildResp?.data?.data?.issueLabels?.nodes || [];
-        const match = nodes.find(n => n?.parent?.id === parentId);
+        const match = nodes.find((n) => n?.parent?.id === parentId);
         if (match) {
             return { id: match.id, name: match.name, parent: match.parent };
         }
@@ -47733,9 +47758,9 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
             console.error('Failed to query existing child label in Linear:', error);
         }
         if (typeof error === 'object' && error !== null && 'response' in error) {
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response data:', error.response?.data);
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response status:', error.response?.status);
         }
     }
@@ -47748,11 +47773,23 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
       }
     `;
     try {
-        const createChildResp = await axios.post(LINEAR_API_URL$1, { query: createChildMutation, variables: { name: versionWithRepo, parentId } }, { headers: { 'Content-Type': 'application/json', 'Authorization': LINEAR_API_KEY$2 } });
+        const createChildResp = await axios.post(LINEAR_API_URL$1, {
+            query: createChildMutation,
+            variables: { name: versionWithRepo, parentId }
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$2
+            }
+        });
         const payload = createChildResp?.data?.data?.issueLabelCreate;
         if (payload && payload.success) {
             console.log(`Created Linear label '${versionWithRepo}' under group '${parentName}'`);
-            return { id: payload.issueLabel.id, name: payload.issueLabel.name, parent: payload.issueLabel.parent || { id: parentId, name: parentName } };
+            return {
+                id: payload.issueLabel.id,
+                name: payload.issueLabel.name,
+                parent: payload.issueLabel.parent || { id: parentId, name: parentName }
+            };
         }
         console.error('Failed to create child Linear label:', createChildResp.data);
         return null;
@@ -47765,9 +47802,9 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
             console.error('An error occurred while creating child Linear label:', error);
         }
         if (typeof error === 'object' && error !== null && 'response' in error) {
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response data:', error.response?.data);
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response status:', error.response?.status);
         }
         return null;
@@ -47776,7 +47813,7 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
 async function addLabelToIssue(linearIssue, releaseLabel) {
     try {
         const current = linearIssue?.labels || [];
-        const currentIds = current.map(l => l.id);
+        const currentIds = current.map((l) => l.id);
         const labelId = releaseLabel?.id;
         if (!labelId) {
             console.error('addLabelToIssue: releaseLabel.id is missing');
@@ -47795,8 +47832,8 @@ async function addLabelToIssue(linearIssue, releaseLabel) {
         else {
             // Remove any existing label that belongs to the same parent group
             const filtered = current
-                .filter(l => (l?.parent?.id || null) !== targetParentId)
-                .map(l => l.id);
+                .filter((l) => (l?.parent?.id || null) !== targetParentId)
+                .map((l) => l.id);
             newIds = [...filtered, labelId];
         }
         const updateMutation = `
@@ -47806,7 +47843,15 @@ async function addLabelToIssue(linearIssue, releaseLabel) {
             }
           }
         `;
-        const updateResp = await axios.post(LINEAR_API_URL$1, { query: updateMutation, variables: { issueId: linearIssue.id, labelIds: newIds } }, { headers: { 'Content-Type': 'application/json', 'Authorization': LINEAR_API_KEY$2 } });
+        const updateResp = await axios.post(LINEAR_API_URL$1, {
+            query: updateMutation,
+            variables: { issueId: linearIssue.id, labelIds: newIds }
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$2
+            }
+        });
         const ok = updateResp?.data?.data?.issueUpdate?.success === true;
         if (!ok) {
             console.error('Failed to update labels on the issue:', updateResp.data);
@@ -47823,17 +47868,17 @@ async function addLabelToIssue(linearIssue, releaseLabel) {
         if (typeof error === 'object' &&
             error !== null &&
             'response' in error &&
-            // @ts-ignore
             error.response) {
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response data:', error.response.data);
-            // @ts-ignore
+            // @ts-expect-error -ignore
             console.error('Response status:', error.response.status);
         }
         return false;
     }
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const LINEAR_API_URL = 'https://api.linear.app/graphql';
 const LINEAR_API_KEY$1 = coreExports.getInput('LINEAR_API_KEY');
 /**
@@ -47859,8 +47904,14 @@ async function getLinearIssueFromPrUrl(prUrl) {
     }
   `;
     try {
-        const response = await axios.post(LINEAR_API_URL, { query: graphqlQuery, variables: { prUrl } }, { headers: { 'Content-Type': 'application/json', Authorization: LINEAR_API_KEY$1 } });
-        const data = response?.data?.data;
+        const response = await axios.post(LINEAR_API_URL, { query: graphqlQuery, variables: { prUrl } }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$1
+            }
+        });
+        const data = response?.data
+            ?.data;
         if (data?.attachments && data.attachments.nodes.length > 0) {
             const issue = data.attachments.nodes[0].issue;
             console.log(`Found Linear issue ${issue.identifier} for PR: ${prUrl}`);
@@ -47905,8 +47956,14 @@ async function moveIssueToDoneIfReady(issueId) {
       }
     `;
     try {
-        const resp = await axios.post(LINEAR_API_URL, { query, variables: { issueId } }, { headers: { 'Content-Type': 'application/json', Authorization: LINEAR_API_KEY$1 } });
-        const issue = resp?.data?.data?.issue;
+        const resp = await axios.post(LINEAR_API_URL, { query, variables: { issueId } }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$1
+            }
+        });
+        const issue = resp?.data?.data
+            ?.issue;
         if (!issue) {
             console.warn(`Could not load issue ${issueId} to evaluate state transition.`);
             return false;
@@ -47926,7 +47983,12 @@ async function moveIssueToDoneIfReady(issueId) {
             issueUpdate(id: $issueId, input: { stateId: $stateId }) { success }
           }
         `;
-        const upd = await axios.post(LINEAR_API_URL, { query: mutation, variables: { issueId, stateId: doneState.id } }, { headers: { 'Content-Type': 'application/json', Authorization: LINEAR_API_KEY$1 } });
+        const upd = await axios.post(LINEAR_API_URL, { query: mutation, variables: { issueId, stateId: doneState.id } }, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: LINEAR_API_KEY$1
+            }
+        });
         const ok = upd?.data?.data?.issueUpdate?.success === true;
         if (!ok) {
             console.error(`Failed to move issue ${issueId} to Done:`, upd.data);
@@ -52187,6 +52249,7 @@ const Octokit = Octokit$1.plugin(requestLog, legacyRestEndpointMethods, paginate
   }
 );
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const GITHUB_TOKEN$1 = coreExports.getInput('GITHUB_TOKEN');
 const GITHUB_ORG$1 = coreExports.getInput('GITHUB_ORG');
 const GITHUB_REPO$1 = coreExports.getInput('GITHUB_REPO');
@@ -52209,7 +52272,7 @@ async function getPullRequestUrlsForRelease(versionName) {
         const response = await octokit.repos.getReleaseByTag({
             owner: GITHUB_ORG$1,
             repo: GITHUB_REPO$1,
-            tag: versionName,
+            tag: versionName
         });
         const releaseBody = response.data.body;
         if (!releaseBody) {
@@ -52285,7 +52348,9 @@ async function processRelease() {
     const doLink = mode === ReleaseMode.Link || mode === ReleaseMode.Both;
     const doLabel = mode === ReleaseMode.Label || mode === ReleaseMode.Both;
     // Ensure the version label exists under the parent group and return label info
-    const releaseLabel = doLabel ? await ensureReleaseLabel(versionName, GITHUB_REPO) : null;
+    const releaseLabel = doLabel
+        ? await ensureReleaseLabel(versionName, GITHUB_REPO)
+        : null;
     const releaseTagUrl = `https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/releases/tag/${versionName}`;
     const updatedIssues = new Set(); // To avoid attaching to the same issue multiple times
     for (const prUrl of prUrls) {
@@ -52341,9 +52406,9 @@ async function processRelease() {
 }
 const enabledPrefixes = (ENABLED_LINEAR_PREFIXES || '')
     .split(/[\s,]+/)
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean)
-    .map(s => s.toUpperCase().endsWith('-') ? s.toUpperCase() : (s.toUpperCase() + '-'));
+    .map((s) => s.toUpperCase().endsWith('-') ? s.toUpperCase() : s.toUpperCase() + '-');
 const isIdentifierEnabled = (identifier) => {
     if (!identifier) {
         return false;
@@ -52353,7 +52418,7 @@ const isIdentifierEnabled = (identifier) => {
         return true;
     }
     const upper = identifier.toUpperCase();
-    return enabledPrefixes.some(pref => upper.startsWith(pref));
+    return enabledPrefixes.some((pref) => upper.startsWith(pref));
 };
 function setResult(message) {
     coreExports.setOutput('result', message);
