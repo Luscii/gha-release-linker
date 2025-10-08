@@ -1,5 +1,6 @@
 name: Release Linker
-description: This GitHub Action links a release to its corresponding Linear tasks.
+description:
+  This GitHub Action links a release to its corresponding Linear tasks.
 author: Luscii
 
 inputs:
@@ -22,13 +23,17 @@ inputs:
     description: Mode of operation 'link', 'attach', or 'both'.
     required: true
   MOVE_TO_DONE:
-    description: If set, moves the Linear issues to the 'Done' state after processing.
+    description:
+      If set, moves the Linear issues to the 'Done' state after processing.
     required: false
-    default: "false"
+    default: 'false'
   ENABLED_LINEAR_PREFIXES:
-    description: Optional comma or space separated list of Linear issue prefixes (e.g. INT,ADM) to restrict which issues are processed. If omitted, all prefixes are allowed.
+    description:
+      Optional comma or space separated list of Linear issue prefixes (e.g.
+      INT,ADM) to restrict which issues are processed. If omitted, all prefixes
+      are allowed.
     required: false
-    default: ""
+    default: ''
 
 outputs:
   result:
