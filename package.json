@@ -1,18 +1,10 @@
 {
-  "name": "typescript-action",
-  "description": "GitHub Actions TypeScript template",
-  "version": "0.0.0",
-  "author": "",
+  "name": "release-linker",
+  "description": "A GitHub Action to link GitHub releases to Linear tasks.",
+  "version": "1.0.0",
+  "author": "Luscii",
   "type": "module",
   "private": true,
-  "homepage": "https://github.com/actions/typescript-action",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
-  },
-  "bugs": {
-    "url": "https://github.com/actions/typescript-action/issues"
-  },
   "keywords": [
     "actions"
   ],
@@ -37,15 +29,18 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.11.1"
+    "@actions/core": "^1.11.1",
+    "axios": "^1.12.2"
   },
   "devDependencies": {
     "@eslint/compat": "^1.4.0",
     "@github/local-action": "^6.0.0",
     "@jest/globals": "^30.2.0",
     "@rollup/plugin-commonjs": "^28.0.6",
+    "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.2",
     "@rollup/plugin-typescript": "^12.1.4",
+    "@types/axios": "^0.9.36",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.7.0",
     "@typescript-eslint/eslint-plugin": "^8.46.0",

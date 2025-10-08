@@ -40,10 +40,6 @@ jobs:
         id: npm-lint
         run: npm run lint
 
-      - name: Test
-        id: npm-ci-test
-        run: npm run ci-test
-
   test-action:
     name: GitHub Actions Test
     runs-on: ubuntu-latest
@@ -57,8 +53,13 @@ jobs:
         id: test-action
         uses: ./
         with:
-          milliseconds: 2000
+          VERSION_NAME: 999
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ORG: Luscii
+          GITHUB_REPO: gha-release-linker
+          MODE: both
 
       - name: Print Output
         id: output
-        run: echo "${{ steps.test-action.outputs.time }}"
+        run: echo "${{ steps.test-action.outputs.result }}"

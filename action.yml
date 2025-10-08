@@ -1,23 +1,34 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
+name: Release Linker
+description: This GitHub Action links a release to its corresponding Linear tasks.
+author: Luscii
 
-# Add your action's branding here. This will appear on the GitHub Marketplace.
-branding:
-  icon: heart
-  color: red
-
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  VERSION_NAME:
+    description: The version of the new release in format 1.2.3.
     required: true
-    default: '1000'
+  LINEAR_API_KEY:
+    description: The Linear API key used to authenticate requests.
+    required: true
+  GITHUB_TOKEN:
+    description: The GitHub token used to authenticate requests.
+    required: true
+  GITHUB_ORG:
+    description: The GitHub organization.
+    required: true
+  GITHUB_REPO:
+    description: The GitHub repository name.
+    required: true
+  MODE:
+    description: Mode of operation 'link', 'attach', or 'both'.
+    required: true
+  MOVE_TO_DONE:
+    description: If set, moves the Linear issues to the 'Done' state after processing.
+    required: false
+    default: ""
 
-# Define your outputs here.
 outputs:
-  time:
-    description: Your output description here
+  result:
+    description: The result of the action.
 
 runs:
   using: node24
