@@ -24,6 +24,10 @@ inputs:
   MOVE_TO_DONE:
     description: If set, moves the Linear issues to the 'Done' state after processing.
     required: false
+    default: "false"
+  ENABLED_LINEAR_PREFIXES:
+    description: Optional comma or space separated list of Linear issue prefixes (e.g. INT,ADM) to restrict which issues are processed. If omitted, all prefixes are allowed.
+    required: false
     default: ""
 
 outputs:
