@@ -53,12 +53,10 @@ jobs:
         id: test-action
         uses: ./
         with:
-          VERSION_NAME: 999
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ORG: Luscii
-          GITHUB_REPO: gha-release-linker
-          MODE: both
+          version-name: 999
+          linear-api-key: ${{ secrets.LINEAR_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-mode: both
 
       - name: Print Output
         id: output
