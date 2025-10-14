@@ -10,7 +10,10 @@ export async function run(): Promise<void> {
   try {
     await processRelease()
   } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    if (error instanceof Error) {
+      core.setFailed(error)
+    } else {
+      core.setFailed(String(error))
+    }
   }
 }

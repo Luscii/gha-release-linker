@@ -16,19 +16,14 @@ This action is designed to:
 
 | Name             | Description                                                        | Required | Default |
 | ---------------- | ------------------------------------------------------------------ | -------- | ------- |
-| `VERSION_NAME`   | The version of the new release in format `1.2.3`.                  | Yes      | N/A     |
-| `LINEAR_API_KEY` | The Linear API key used to authenticate requests.                  | Yes      | N/A     |
-| `GITHUB_TOKEN`   | The GitHub token used to authenticate requests.                    | Yes      | N/A     |
-| `GITHUB_ORG`     | The GitHub organization.                                           | Yes      | N/A     |
-| `GITHUB_REPO`    | The GitHub repository name.                                        | Yes      | N/A     |
-| `MODE`           | Mode of operation: `'link'`, `'attach'`, or `'both'`.              | Yes      | N/A     |
-| `MOVE_TO_DONE`   | If set, moves the Linear issues to the 'Done' state after linking. | No       | `""`    |
+| `version-name`   | The version of the new release in format `1.2.3`.                  | Yes      | N/A     |
+| `linear-api-key` | The Linear API key used to authenticate requests.                  | Yes      | N/A     |
+| `github-token`   | The GitHub token used to authenticate requests.                    | Yes      | N/A     |
+| `release-mode`   | Mode of operation: `'link'`, `'attach'`, or `'both'`.              | Yes      | N/A     |
 
 ## Outputs
+No outputs for this action
 
-| Name     | Description               |
-| -------- | ------------------------- |
-| `result` | The result of the action. |
 
 ## Example Usage
 
@@ -52,19 +47,16 @@ jobs:
       - name: Link Release to Linear Tasks
         uses: Luscii/gha-release-linker@v1
         with:
-          VERSION_NAME: ${{ github.event.release.tag_name }}
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ORG: your-org
-          GITHUB_REPO: your-repo
-          MODE: both
-          MOVE_TO_DONE: true
+          version-name: ${{ github.event.release.tag_name }}
+          linear-api-key: ${{ secrets.LINEAR_API_KEY }}
+          github-token: linear-api-key${{ secrets.GITHUB_TOKEN }}
+          release-mode: both
 ```
 
 ## Notes
 
 - Ensure your Linear API key and GitHub token are stored securely as secrets.
-- The action supports three modes: `'link'`, `'attach'`, or `'both'`.
+- The action supports three release modes: `'link'`, `'attach'`, or `'both'`.
 - For more configuration options, see the [action.yml](./action.yml) file.
 
 ## Local Development & Testing
@@ -92,7 +84,7 @@ npx @github/local-action . src/main.ts .env
 
 This will execute the action using your local environment variables.
 
-## Generating a New Release
+## Generating a New Release (this will be removed once automated release are configured)
 
 To create a new release, use the provided `script/release` script. This script
 automates version bumping, changelog generation, and tagging.
