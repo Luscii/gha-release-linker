@@ -14,16 +14,16 @@ This action is designed to:
 
 ## Inputs
 
-| Name             | Description                                                        | Required | Default |
-| ---------------- | ------------------------------------------------------------------ | -------- | ------- |
-| `version-name`   | The version of the new release in format `1.2.3`.                  | Yes      | N/A     |
-| `linear-api-key` | The Linear API key used to authenticate requests.                  | Yes      | N/A     |
-| `github-token`   | The GitHub token used to authenticate requests.                    | Yes      | N/A     |
-| `release-mode`   | Mode of operation: `'link'`, `'attach'`, or `'both'`.              | Yes      | N/A     |
+| Name             | Description                                           | Required | Default |
+| ---------------- | ----------------------------------------------------- | -------- | ------- |
+| `version-name`   | The version of the new release in format `1.2.3`.     | Yes      | N/A     |
+| `linear-api-key` | The Linear API key used to authenticate requests.     | Yes      | N/A     |
+| `github-token`   | The GitHub token used to authenticate requests.       | Yes      | N/A     |
+| `release-mode`   | Mode of operation: `'link'`, `'attach'`, or `'both'`. | Yes      | N/A     |
 
 ## Outputs
-No outputs for this action
 
+No outputs for this action
 
 ## Example Usage
 
