@@ -57,7 +57,3 @@ jobs:
           linear-api-key: ${{ secrets.LINEAR_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-mode: both
-
-      - name: Print Output
-        id: output
-        run: echo "${{ steps.test-action.outputs.result }}"
