@@ -1,0 +1,55 @@
+name: Scheduled Release
+on:
+  schedule:
+    # Every Tuesday at 09:00 AMS
+    - cron: '0 7 * * 2'
+  workflow_dispatch:
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+  release:
+    needs: [test]
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Draft Release
+        id: get-release
+        uses: boite-nl/query-release-action@v1.0.2
+        with:
+          draft: true
+      - name: Echo outputs
+        run: |
+          echo "FOUND: ${{ steps.get-release.outputs.found }}"
+          echo "Name: ${{ steps.get-release.outputs.name }}"
+          echo "TagName: ${{ steps.get-release.outputs.tag_name }}"
+      - name: "Create Release"
+        uses: actions/github-script@v7
+        if: steps.get-release.outputs.found == 'true'
+        with:
+          github-token: ${{ secrets.CI_GITHUB_TOKEN }}
+          script: |
+            const { data: release } = await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ steps.get-release.outputs.id }},
+              prerelease: false,
+              draft: false,
+              make_latest: true
+            })
+
+            return release
+      - name: Create Summary
+        run: |
+          echo "### 🚀 Release: $NAME"  >> $GITHUB_STEP_SUMMARY
+          echo ""  >> $GITHUB_STEP_SUMMARY
+          echo $BODY  >> $GITHUB_STEP_SUMMARY
+          echo ""  >> $GITHUB_STEP_SUMMARY
+          echo "[View Release]($URL)"  >> $GITHUB_STEP_SUMMARY
+        env:
+          NAME: ${{ steps.get-release.outputs.name }}
+          BODY: ${{ steps.get-release.outputs.body }}
+          URL: ${{ steps.get-release.outputs.url }}
+      - name: Echo Summary
+        run:
+          cat $GITHUB_STEP_SUMMARY

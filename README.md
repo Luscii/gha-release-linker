@@ -83,28 +83,3 @@ npx @github/local-action . src/main.ts .env
 ```
 
 This will execute the action using your local environment variables.
-
-## Generating a New Release (this will be removed once automated release are configured)
-
-To create a new release, use the provided `script/release` script. This script
-automates version bumping, changelog generation, and tagging.
-
-1. Run the release script:
-
-```bash
-./script/release
-```
-
-2. Follow the prompts to select the release type (major, minor, patch).
-
-3. The script will:
-
-- Update the version in `package.json`
-- Generate or update the changelog
-- Commit changes and create a new git tag
-
-4. Push the changes and tags to GitHub:
-
-```bash
-git push && git push --tags
-```
