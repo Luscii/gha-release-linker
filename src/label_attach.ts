@@ -54,6 +54,8 @@ async function createParentLabelGroup(
   linearApiUrl: string,
   linearApiKey: string
 ) {
+  core.info(`Creating parent label group '${parentName}' in Linear...`)
+
   const createParentMutation = `
           mutation CreateParent($name: String!) {
             issueLabelCreate(input: { name: $name, isGroup: true }) {
@@ -82,6 +84,9 @@ async function createParentLabelGroup(
   )
   const payload = createParentResp?.data?.data?.issueLabelCreate
   if (payload && payload.success) {
+    core.info(
+      `Created parent label group '${parentName}' with ID ${payload.issueLabel.id}`
+    )
     return payload.issueLabel.id
   } else {
     throw new Error(
@@ -95,6 +100,8 @@ async function fetchParentIdByName(
   linearApiUrl: string,
   linearApiKey: string
 ) {
+  core.info(`Looking for parent label group '${parentName}' in Linear...`)
+
   const findParentQuery = `
       query FindParent($name: String!) {
         issueLabels(filter: { name: { eq: $name } }) {
@@ -122,7 +129,13 @@ async function fetchParentIdByName(
   const nodes = findParentResp?.data?.data?.issueLabels?.nodes || []
   if (nodes.length > 0) {
     parentId = nodes[0].id
+    core.info(
+      `Found existing parent label group '${parentName}' with ID ${parentId}`
+    )
+  } else {
+    core.info(`Parent label group '${parentName}' not found in Linear.`)
   }
+
   return parentId
 }
 
@@ -176,6 +189,10 @@ async function createChildLabel(
   linearApiUrl: string,
   linearApiKey: string
 ) {
+  core.info(
+    `Creating child label '${labelName}' under parent ID ${parentId} in Linear...`
+  )
+
   const createChildMutation = `
       mutation CreateChild($name: String!, $parentId: String!) {
         issueLabelCreate(input: { name: $name, parentId: $parentId }) {
@@ -230,6 +247,10 @@ async function fetchChildLabel(
   linearApiUrl: string,
   linearApiKey: string
 ): Promise<LinearLabel | null> {
+  core.info(
+    `Looking for child label '${labelName}' under parent ID ${parentId} in Linear...`
+  )
+
   const findChildQuery = `
       query FindChild($name: String!) {
         issueLabels(filter: { name: { eq: $name } }) {
@@ -261,9 +282,13 @@ async function fetchChildLabel(
   const nodes = findChildResp?.data?.data?.issueLabels?.nodes || []
   const match = nodes.find((n) => n?.parent?.id === parentId)
   if (match) {
+    core.info(`Found existing label '${labelName}' with ID ${match.id}`)
     return { id: match.id, name: match.name, parent: match.parent }
   }
 
+  core.info(
+    `Label '${labelName}' not found under parent ID ${parentId} in Linear.`
+  )
   return null
 }
 

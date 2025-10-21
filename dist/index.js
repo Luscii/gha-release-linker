@@ -47682,6 +47682,7 @@ async function ensureReleaseLabel(versionName, repoName, linearApiUrl, linearApi
     return await ensureLabelGroupAndChild(versionName, parentId, parentName, repoName, linearApiUrl, linearApiKey);
 }
 async function createParentLabelGroup(parentName, linearApiUrl, linearApiKey) {
+    coreExports.info(`Creating parent label group '${parentName}' in Linear...`);
     const createParentMutation = `
           mutation CreateParent($name: String!) {
             issueLabelCreate(input: { name: $name, isGroup: true }) {
@@ -47698,6 +47699,7 @@ async function createParentLabelGroup(parentName, linearApiUrl, linearApiKey) {
     });
     const payload = createParentResp?.data?.data?.issueLabelCreate;
     if (payload && payload.success) {
+        coreExports.info(`Created parent label group '${parentName}' with ID ${payload.issueLabel.id}`);
         return payload.issueLabel.id;
     }
     else {
@@ -47705,6 +47707,7 @@ async function createParentLabelGroup(parentName, linearApiUrl, linearApiKey) {
     }
 }
 async function fetchParentIdByName(parentName, linearApiUrl, linearApiKey) {
+    coreExports.info(`Looking for parent label group '${parentName}' in Linear...`);
     const findParentQuery = `
       query FindParent($name: String!) {
         issueLabels(filter: { name: { eq: $name } }) {
@@ -47722,6 +47725,10 @@ async function fetchParentIdByName(parentName, linearApiUrl, linearApiKey) {
     const nodes = findParentResp?.data?.data?.issueLabels?.nodes || [];
     if (nodes.length > 0) {
         parentId = nodes[0].id;
+        coreExports.info(`Found existing parent label group '${parentName}' with ID ${parentId}`);
+    }
+    else {
+        coreExports.info(`Parent label group '${parentName}' not found in Linear.`);
     }
     return parentId;
 }
@@ -47747,6 +47754,7 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
     return createChildLabel(versionWithRepo, parentId, parentName, linearApiUrl, linearApiKey);
 }
 async function createChildLabel(labelName, parentId, parentName, linearApiUrl, linearApiKey) {
+    coreExports.info(`Creating child label '${labelName}' under parent ID ${parentId} in Linear...`);
     const createChildMutation = `
       mutation CreateChild($name: String!, $parentId: String!) {
         issueLabelCreate(input: { name: $name, parentId: $parentId }) {
@@ -47776,6 +47784,7 @@ async function createChildLabel(labelName, parentId, parentName, linearApiUrl, l
     };
 }
 async function fetchChildLabel(labelName, parentId, linearApiUrl, linearApiKey) {
+    coreExports.info(`Looking for child label '${labelName}' under parent ID ${parentId} in Linear...`);
     const findChildQuery = `
       query FindChild($name: String!) {
         issueLabels(filter: { name: { eq: $name } }) {
@@ -47792,8 +47801,10 @@ async function fetchChildLabel(labelName, parentId, linearApiUrl, linearApiKey) 
     const nodes = findChildResp?.data?.data?.issueLabels?.nodes || [];
     const match = nodes.find((n) => n?.parent?.id === parentId);
     if (match) {
+        coreExports.info(`Found existing label '${labelName}' with ID ${match.id}`);
         return { id: match.id, name: match.name, parent: match.parent };
     }
+    coreExports.info(`Label '${labelName}' not found under parent ID ${parentId} in Linear.`);
     return null;
 }
 /**
