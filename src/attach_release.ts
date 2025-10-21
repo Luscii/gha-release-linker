@@ -4,7 +4,7 @@ import { getLinearIssueFromPrUrl } from './linear_issue.js'
 import { getPullRequestUrlsForRelease } from './github.js'
 import { config, ReleaseMode } from './config.js'
 import * as core from '@actions/core'
-import { LinearIssue } from './linear.js'
+import { LinearIssue, LinearLabel } from './linear.js'
 
 const {
   versionName,
@@ -15,6 +15,13 @@ const {
   linearApiKey,
   linearApiUrl
 } = config
+
+const doLink =
+  releaseMode === ReleaseMode.Link || releaseMode === ReleaseMode.Both
+const doLabel =
+  releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both
+
+let releaseLabel: LinearLabel
 
 /**
  * Main function to coordinate finding issues and attaching release links.
@@ -34,15 +41,24 @@ export async function processRelease(): Promise<void> {
     return
   }
 
-  const updatedIssues = new Set() // To avoid attaching to the same issue multiple times
+  if (doLabel) {
+    releaseLabel = await ensureReleaseLabel(
+      versionName,
+      githubRepo,
+      linearApiUrl,
+      linearApiKey
+    )
+  }
 
-  prUrls.forEach(async (prUrl) => {
-    const linearIssue = await updateLinearIssueWithRelease(prUrl)
-
-    if (linearIssue) {
-      updatedIssues.add(linearIssue.id)
-    }
-  })
+  const updatedIssues = new Set()
+  await Promise.all(
+    prUrls.map(async (prUrl) => {
+      const linearIssue = await updateLinearIssueWithRelease(prUrl)
+      if (linearIssue) {
+        updatedIssues.add(linearIssue.id)
+      }
+    })
+  )
 
   if (updatedIssues.size > 0) {
     core.info(
@@ -65,8 +81,6 @@ async function updateLinearIssueWithRelease(prUrl: string) {
   }
 
   let anySuccess = false
-  const doLink =
-    releaseMode === ReleaseMode.Link || releaseMode === ReleaseMode.Both
   if (doLink) {
     try {
       await attachReleaseLinkToIssue(linearIssue, prUrl)
@@ -83,11 +97,18 @@ async function updateLinearIssueWithRelease(prUrl: string) {
     core.info('Skipping link attachment (mode does not include link).')
   }
 
-  const doLabel =
-    releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both
   if (doLabel) {
     try {
-      await addReleaseLabelToIssue(linearIssue)
+      core.info(
+        `Adding release label for version ${versionName} to Linear issue (${linearIssue.identifier})`
+      )
+
+      await addLabelToIssue(
+        linearIssue,
+        releaseLabel,
+        linearApiUrl,
+        linearApiKey
+      )
       anySuccess = true
     } catch (error) {
       // Process won't be interrupted to let other issues to be updated
@@ -100,21 +121,6 @@ async function updateLinearIssueWithRelease(prUrl: string) {
   if (anySuccess) {
     return linearIssue
   }
-}
-
-async function addReleaseLabelToIssue(linearIssue: LinearIssue) {
-  core.info(
-    `Adding release label for version ${versionName} to Linear issue (${linearIssue.identifier})`
-  )
-
-  const releaseLabel = await ensureReleaseLabel(
-    versionName,
-    githubRepo,
-    linearApiUrl,
-    linearApiKey
-  )
-
-  await addLabelToIssue(linearIssue, releaseLabel, linearApiUrl, linearApiKey)
 }
 
 async function attachReleaseLinkToIssue(

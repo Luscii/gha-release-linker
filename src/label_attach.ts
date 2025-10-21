@@ -308,6 +308,10 @@ export async function addLabelToIssue(
   linearApiUrl: string,
   linearApiKey: string
 ) {
+  core.info(
+    `Attaching label '${releaseLabel.name}' to issue '${linearIssue.identifier}'...`
+  )
+
   const current = linearIssue?.labels || []
   const currentIds = current.map((l) => l.id)
   const labelId = releaseLabel.id
