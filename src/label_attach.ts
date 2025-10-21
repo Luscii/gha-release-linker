@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { LinearLabel, LinearIssue } from './linear.util.js'
+import { LinearLabel, LinearIssue } from './linear.js'
 import * as core from '@actions/core'
 
 /**
@@ -13,7 +13,7 @@ import * as core from '@actions/core'
  * @param repoName - The name of the repository.
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API key for authentication.
- * @returns The created or found LinearLabel object, or null if unsuccessful.
+ * @returns The created or found LinearLabel object.
  *
  * @throws If the parent label group or child label cannot be created in Linear.
  */
@@ -22,11 +22,79 @@ export async function ensureReleaseLabel(
   repoName: string,
   linearApiUrl: string,
   linearApiKey: string
-): Promise<LinearLabel | null> {
-  const cleanVersion = versionName.startsWith('v')
-    ? versionName.slice(1)
-    : versionName
+): Promise<LinearLabel> {
   const parentName = `${repoName} releases`
+
+  let parentId = await fetchParentIdByName(
+    parentName,
+    linearApiUrl,
+    linearApiKey
+  )
+
+  if (!parentId) {
+    parentId = await createParentLabelGroup(
+      parentName,
+      linearApiUrl,
+      linearApiKey
+    )
+  }
+
+  return await ensureLabelGroupAndChild(
+    versionName,
+    parentId,
+    parentName,
+    repoName,
+    linearApiUrl,
+    linearApiKey
+  )
+}
+
+async function createParentLabelGroup(
+  parentName: string,
+  linearApiUrl: string,
+  linearApiKey: string
+) {
+  const createParentMutation = `
+          mutation CreateParent($name: String!) {
+            issueLabelCreate(input: { name: $name, isGroup: true }) {
+              success
+              issueLabel { id name }
+            }
+          }
+        `
+
+  const createParentResp = await axios.post<{
+    data: {
+      issueLabelCreate: {
+        success: boolean
+        issueLabel: { id: string; name: string }
+      }
+    }
+  }>(
+    linearApiUrl,
+    { query: createParentMutation, variables: { name: parentName } },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: linearApiKey
+      }
+    }
+  )
+  const payload = createParentResp?.data?.data?.issueLabelCreate
+  if (payload && payload.success) {
+    return payload.issueLabel.id
+  } else {
+    throw new Error(
+      'Failed to create parent label group in Linear:' + createParentResp.data
+    )
+  }
+}
+
+async function fetchParentIdByName(
+  parentName: string,
+  linearApiUrl: string,
+  linearApiKey: string
+) {
   const findParentQuery = `
       query FindParent($name: String!) {
         issueLabels(filter: { name: { eq: $name } }) {
@@ -55,52 +123,7 @@ export async function ensureReleaseLabel(
   if (nodes.length > 0) {
     parentId = nodes[0].id
   }
-
-  if (!parentId) {
-    const createParentMutation = `
-          mutation CreateParent($name: String!) {
-            issueLabelCreate(input: { name: $name, isGroup: true }) {
-              success
-              issueLabel { id name }
-            }
-          }
-        `
-
-    const createParentResp = await axios.post<{
-      data: {
-        issueLabelCreate: {
-          success: boolean
-          issueLabel: { id: string; name: string }
-        }
-      }
-    }>(
-      linearApiUrl,
-      { query: createParentMutation, variables: { name: parentName } },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: linearApiKey
-        }
-      }
-    )
-    const payload = createParentResp?.data?.data?.issueLabelCreate
-    if (payload && payload.success) {
-      parentId = payload.issueLabel.id
-    } else {
-      throw new Error(
-        'Failed to create parent label group in Linear:' + createParentResp.data
-      )
-    }
-  }
-
-  return await ensureLabelGroupAndChild(
-    cleanVersion,
-    parentId,
-    parentName,
-    repoName,
-    linearApiUrl,
-    linearApiKey
-  )
+  return parentId
 }
 
 /**
@@ -113,7 +136,7 @@ export async function ensureReleaseLabel(
  * @param repoName - The name of the repository (optional, appended to the label name).
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API key for authentication.
- * @returns The created or found Linear label object, or null if not found.
+ * @returns The created or found Linear label object.
  * @throws If the child label cannot be created.
  */
 async function ensureLabelGroupAndChild(
@@ -123,44 +146,36 @@ async function ensureLabelGroupAndChild(
   repoName: string,
   linearApiUrl: string,
   linearApiKey: string
-): Promise<LinearLabel | null> {
-  const versionWithRepo = repoName
-    ? `${cleanVersion} (${repoName})`
-    : cleanVersion
-  const findChildQuery = `
-      query FindChild($name: String!) {
-        issueLabels(filter: { name: { eq: $name } }) {
-          nodes { id name parent { id name } }
-        }
-      }
-    `
+): Promise<LinearLabel> {
+  const versionWithRepo = `${cleanVersion} (${repoName})`
 
-  const findChildResp = await axios.post<{
-    data: {
-      issueLabels: {
-        nodes: Array<{
-          id: string
-          name: string
-          parent?: { id: string; name: string }
-        }>
-      }
-    }
-  }>(
+  const label = await fetchChildLabel(
+    versionWithRepo,
+    parentId,
     linearApiUrl,
-    { query: findChildQuery, variables: { name: versionWithRepo } },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: linearApiKey
-      }
-    }
+    linearApiKey
   )
-  const nodes = findChildResp?.data?.data?.issueLabels?.nodes || []
-  const match = nodes.find((n) => n?.parent?.id === parentId)
-  if (match) {
-    return { id: match.id, name: match.name, parent: match.parent }
+
+  if (label) {
+    return label
   }
 
+  return createChildLabel(
+    versionWithRepo,
+    parentId,
+    parentName,
+    linearApiUrl,
+    linearApiKey
+  )
+}
+
+async function createChildLabel(
+  labelName: string,
+  parentId: string,
+  parentName: string,
+  linearApiUrl: string,
+  linearApiKey: string
+) {
   const createChildMutation = `
       mutation CreateChild($name: String!, $parentId: String!) {
         issueLabelCreate(input: { name: $name, parentId: $parentId }) {
@@ -185,7 +200,7 @@ async function ensureLabelGroupAndChild(
     linearApiUrl,
     {
       query: createChildMutation,
-      variables: { name: versionWithRepo, parentId }
+      variables: { name: labelName, parentId }
     },
     {
       headers: {
@@ -195,17 +210,61 @@ async function ensureLabelGroupAndChild(
     }
   )
   const payload = createChildResp?.data?.data?.issueLabelCreate
-  if (payload && payload.success) {
-    core.info(
-      `Created Linear label '${versionWithRepo}' under group '${parentName}'`
+  if (!payload || !payload.success) {
+    throw new Error(
+      'Failed to create child Linear label:' + String(createChildResp.data)
     )
-    return {
-      id: payload.issueLabel.id,
-      name: payload.issueLabel.name,
-      parent: payload.issueLabel.parent || { id: parentId, name: parentName }
-    }
   }
-  throw new Error('Failed to create child Linear label:' + createChildResp.data)
+
+  core.info(`Created Linear label '${labelName}' under group '${parentName}'`)
+  return {
+    id: payload.issueLabel.id,
+    name: payload.issueLabel.name,
+    parent: payload.issueLabel.parent || { id: parentId, name: parentName }
+  }
+}
+
+async function fetchChildLabel(
+  labelName: string,
+  parentId: string,
+  linearApiUrl: string,
+  linearApiKey: string
+): Promise<LinearLabel | null> {
+  const findChildQuery = `
+      query FindChild($name: String!) {
+        issueLabels(filter: { name: { eq: $name } }) {
+          nodes { id name parent { id name } }
+        }
+      }
+    `
+
+  const findChildResp = await axios.post<{
+    data: {
+      issueLabels: {
+        nodes: Array<{
+          id: string
+          name: string
+          parent?: { id: string; name: string }
+        }>
+      }
+    }
+  }>(
+    linearApiUrl,
+    { query: findChildQuery, variables: { name: labelName } },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: linearApiKey
+      }
+    }
+  )
+  const nodes = findChildResp?.data?.data?.issueLabels?.nodes || []
+  const match = nodes.find((n) => n?.parent?.id === parentId)
+  if (match) {
+    return { id: match.id, name: match.name, parent: match.parent }
+  }
+
+  return null
 }
 
 /**
@@ -217,14 +276,13 @@ async function ensureLabelGroupAndChild(
  * @param releaseLabel - The label to attach to the issue.
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API authentication key.
- * @returns A promise resolving to true if the label was successfully added or already present, false otherwise.
  */
 export async function addLabelToIssue(
   linearIssue: LinearIssue,
   releaseLabel: LinearLabel,
   linearApiUrl: string,
   linearApiKey: string
-): Promise<boolean> {
+) {
   const current = linearIssue?.labels || []
   const currentIds = current.map((l) => l.id)
   const labelId = releaseLabel.id

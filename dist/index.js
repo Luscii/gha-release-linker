@@ -47613,7 +47613,7 @@ const {
  * @param versionName - The release version name (e.g., "1.2.3").
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API key for authentication.
- * @returns A promise that resolves to `true` if the attachment was created successfully, or `false` otherwise.
+ * @throws Will throw an error if the attachment creation fails.
  */
 async function createLinearAttachment(issueId, url, versionName, linearApiUrl, linearApiKey) {
     const graphqlMutation = `
@@ -47651,12 +47651,10 @@ async function createLinearAttachment(issueId, url, versionName, linearApiUrl, l
     const { data } = response.data;
     if (data.attachmentCreate && data.attachmentCreate.success) {
         coreExports.info(`Successfully attached "${versionName}" to Linear issue`);
-        return true;
     }
     else {
-        coreExports.info(`Failed to attach "${versionName}" to Linear issue:` +
+        throw new Error(`Failed to attach "${versionName}" to Linear issue:` +
             response.data.errors);
-        return false;
     }
 }
 
@@ -47671,15 +47669,42 @@ async function createLinearAttachment(issueId, url, versionName, linearApiUrl, l
  * @param repoName - The name of the repository.
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API key for authentication.
- * @returns The created or found LinearLabel object, or null if unsuccessful.
+ * @returns The created or found LinearLabel object.
  *
  * @throws If the parent label group or child label cannot be created in Linear.
  */
 async function ensureReleaseLabel(versionName, repoName, linearApiUrl, linearApiKey) {
-    const cleanVersion = versionName.startsWith('v')
-        ? versionName.slice(1)
-        : versionName;
     const parentName = `${repoName} releases`;
+    let parentId = await fetchParentIdByName(parentName, linearApiUrl, linearApiKey);
+    if (!parentId) {
+        parentId = await createParentLabelGroup(parentName, linearApiUrl, linearApiKey);
+    }
+    return await ensureLabelGroupAndChild(versionName, parentId, parentName, repoName, linearApiUrl, linearApiKey);
+}
+async function createParentLabelGroup(parentName, linearApiUrl, linearApiKey) {
+    const createParentMutation = `
+          mutation CreateParent($name: String!) {
+            issueLabelCreate(input: { name: $name, isGroup: true }) {
+              success
+              issueLabel { id name }
+            }
+          }
+        `;
+    const createParentResp = await axios.post(linearApiUrl, { query: createParentMutation, variables: { name: parentName } }, {
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: linearApiKey
+        }
+    });
+    const payload = createParentResp?.data?.data?.issueLabelCreate;
+    if (payload && payload.success) {
+        return payload.issueLabel.id;
+    }
+    else {
+        throw new Error('Failed to create parent label group in Linear:' + createParentResp.data);
+    }
+}
+async function fetchParentIdByName(parentName, linearApiUrl, linearApiKey) {
     const findParentQuery = `
       query FindParent($name: String!) {
         issueLabels(filter: { name: { eq: $name } }) {
@@ -47698,30 +47723,7 @@ async function ensureReleaseLabel(versionName, repoName, linearApiUrl, linearApi
     if (nodes.length > 0) {
         parentId = nodes[0].id;
     }
-    if (!parentId) {
-        const createParentMutation = `
-          mutation CreateParent($name: String!) {
-            issueLabelCreate(input: { name: $name, isGroup: true }) {
-              success
-              issueLabel { id name }
-            }
-          }
-        `;
-        const createParentResp = await axios.post(linearApiUrl, { query: createParentMutation, variables: { name: parentName } }, {
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: linearApiKey
-            }
-        });
-        const payload = createParentResp?.data?.data?.issueLabelCreate;
-        if (payload && payload.success) {
-            parentId = payload.issueLabel.id;
-        }
-        else {
-            throw new Error('Failed to create parent label group in Linear:' + createParentResp.data);
-        }
-    }
-    return await ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repoName, linearApiUrl, linearApiKey);
+    return parentId;
 }
 /**
  * Ensures that a child label with the specified version and repository exists under the given parent label group in Linear.
@@ -47733,31 +47735,18 @@ async function ensureReleaseLabel(versionName, repoName, linearApiUrl, linearApi
  * @param repoName - The name of the repository (optional, appended to the label name).
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API key for authentication.
- * @returns The created or found Linear label object, or null if not found.
+ * @returns The created or found Linear label object.
  * @throws If the child label cannot be created.
  */
 async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repoName, linearApiUrl, linearApiKey) {
-    const versionWithRepo = repoName
-        ? `${cleanVersion} (${repoName})`
-        : cleanVersion;
-    const findChildQuery = `
-      query FindChild($name: String!) {
-        issueLabels(filter: { name: { eq: $name } }) {
-          nodes { id name parent { id name } }
-        }
-      }
-    `;
-    const findChildResp = await axios.post(linearApiUrl, { query: findChildQuery, variables: { name: versionWithRepo } }, {
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: linearApiKey
-        }
-    });
-    const nodes = findChildResp?.data?.data?.issueLabels?.nodes || [];
-    const match = nodes.find((n) => n?.parent?.id === parentId);
-    if (match) {
-        return { id: match.id, name: match.name, parent: match.parent };
+    const versionWithRepo = `${cleanVersion} (${repoName})`;
+    const label = await fetchChildLabel(versionWithRepo, parentId, linearApiUrl, linearApiKey);
+    if (label) {
+        return label;
     }
+    return createChildLabel(versionWithRepo, parentId, parentName, linearApiUrl, linearApiKey);
+}
+async function createChildLabel(labelName, parentId, parentName, linearApiUrl, linearApiKey) {
     const createChildMutation = `
       mutation CreateChild($name: String!, $parentId: String!) {
         issueLabelCreate(input: { name: $name, parentId: $parentId }) {
@@ -47768,7 +47757,7 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
     `;
     const createChildResp = await axios.post(linearApiUrl, {
         query: createChildMutation,
-        variables: { name: versionWithRepo, parentId }
+        variables: { name: labelName, parentId }
     }, {
         headers: {
             'Content-Type': 'application/json',
@@ -47776,15 +47765,36 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
         }
     });
     const payload = createChildResp?.data?.data?.issueLabelCreate;
-    if (payload && payload.success) {
-        coreExports.info(`Created Linear label '${versionWithRepo}' under group '${parentName}'`);
-        return {
-            id: payload.issueLabel.id,
-            name: payload.issueLabel.name,
-            parent: payload.issueLabel.parent || { id: parentId, name: parentName }
-        };
+    if (!payload || !payload.success) {
+        throw new Error('Failed to create child Linear label:' + String(createChildResp.data));
     }
-    throw new Error('Failed to create child Linear label:' + createChildResp.data);
+    coreExports.info(`Created Linear label '${labelName}' under group '${parentName}'`);
+    return {
+        id: payload.issueLabel.id,
+        name: payload.issueLabel.name,
+        parent: payload.issueLabel.parent || { id: parentId, name: parentName }
+    };
+}
+async function fetchChildLabel(labelName, parentId, linearApiUrl, linearApiKey) {
+    const findChildQuery = `
+      query FindChild($name: String!) {
+        issueLabels(filter: { name: { eq: $name } }) {
+          nodes { id name parent { id name } }
+        }
+      }
+    `;
+    const findChildResp = await axios.post(linearApiUrl, { query: findChildQuery, variables: { name: labelName } }, {
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: linearApiKey
+        }
+    });
+    const nodes = findChildResp?.data?.data?.issueLabels?.nodes || [];
+    const match = nodes.find((n) => n?.parent?.id === parentId);
+    if (match) {
+        return { id: match.id, name: match.name, parent: match.parent };
+    }
+    return null;
 }
 /**
  * Adds a label to a Linear issue, ensuring exclusivity within the label's parent group.
@@ -47795,7 +47805,6 @@ async function ensureLabelGroupAndChild(cleanVersion, parentId, parentName, repo
  * @param releaseLabel - The label to attach to the issue.
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API authentication key.
- * @returns A promise resolving to true if the label was successfully added or already present, false otherwise.
  */
 async function addLabelToIssue(linearIssue, releaseLabel, linearApiUrl, linearApiKey) {
     const current = linearIssue?.labels || [];
@@ -56214,57 +56223,69 @@ async function processRelease() {
         coreExports.info(`No PRs found for release ${versionName} or could not fetch them. No Linear issues to update.`);
         return;
     }
-    const doLink = releaseMode === ReleaseMode.Link || releaseMode === ReleaseMode.Both;
-    const doLabel = releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both;
-    // Ensure the version label exists under the parent group and return label info
-    const releaseLabel = doLabel
-        ? await ensureReleaseLabel(versionName, githubRepo, linearApiUrl, linearApiKey)
-        : null;
-    const releaseTagUrl = `https://github.com/${githubOrg}/${githubRepo}/releases/tag/${versionName}`;
     const updatedIssues = new Set(); // To avoid attaching to the same issue multiple times
-    for (const prUrl of prUrls) {
-        const linearIssue = await getLinearIssueFromPrUrl(prUrl, linearApiUrl, linearApiKey);
-        if (linearIssue && !updatedIssues.has(linearIssue.id)) {
-            let anySuccess = false;
-            if (doLink) {
-                coreExports.info(`Attaching release link ${versionName} to Linear issue (${linearIssue.identifier}) linked from PR: ${prUrl}`);
-                const linkSuccess = await createLinearAttachment(linearIssue.id, releaseTagUrl, versionName, linearApiUrl, linearApiKey);
-                if (!linkSuccess) {
-                    coreExports.info(`Failed to create attachment for issue ${linearIssue.identifier}.`);
-                }
-                anySuccess = anySuccess || linkSuccess;
-            }
-            else {
-                coreExports.info('Skipping link attachment (mode does not include link).');
-            }
-            if (doLabel) {
-                if (releaseLabel?.id) {
-                    const labeled = await addLabelToIssue(linearIssue, releaseLabel, linearApiUrl, linearApiKey);
-                    if (!labeled) {
-                        coreExports.info(`Failed to apply label to issue ${linearIssue.identifier}.`);
-                    }
-                    else {
-                        anySuccess = true;
-                    }
-                }
-                else {
-                    coreExports.info('Failed to ensure/create the release label.');
-                }
-            }
-            else {
-                coreExports.info('Skipping label update (mode does not include label).');
-            }
-            if (anySuccess) {
-                updatedIssues.add(linearIssue.id);
-            }
+    prUrls.forEach(async (prUrl) => {
+        const linearIssue = await updateLinearIssueWithRelease(prUrl);
+        if (linearIssue) {
+            updatedIssues.add(linearIssue.id);
         }
-    }
+    });
     if (updatedIssues.size > 0) {
         coreExports.info(`Successfully updated ${updatedIssues.size} Linear issue(s) for release ${versionName}.`);
     }
     else {
         coreExports.info(`No Linear issues were updated for release ${versionName}.`);
     }
+}
+async function updateLinearIssueWithRelease(prUrl) {
+    const linearIssue = await getLinearIssueFromPrUrl(prUrl, linearApiUrl, linearApiKey);
+    if (!linearIssue) {
+        coreExports.info(`No Linear issue linked to PR: ${prUrl}. Skipping.`);
+        return;
+    }
+    let anySuccess = false;
+    const doLink = releaseMode === ReleaseMode.Link || releaseMode === ReleaseMode.Both;
+    if (doLink) {
+        try {
+            await attachReleaseLinkToIssue(linearIssue, prUrl);
+            anySuccess = true;
+        }
+        catch (error) {
+            // Process won't be interrupted to let other issues to be updated
+            coreExports.info(`Failed to create attachment for issue ${linearIssue.identifier}.`);
+            coreExports.info(String(error));
+        }
+    }
+    else {
+        coreExports.info('Skipping link attachment (mode does not include link).');
+    }
+    const doLabel = releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both;
+    if (doLabel) {
+        try {
+            await addReleaseLabelToIssue(linearIssue);
+            anySuccess = true;
+        }
+        catch (error) {
+            // Process won't be interrupted to let other issues to be updated
+            coreExports.info(String(error));
+        }
+    }
+    else {
+        coreExports.info('Skipping label update (mode does not include label).');
+    }
+    if (anySuccess) {
+        return linearIssue;
+    }
+}
+async function addReleaseLabelToIssue(linearIssue) {
+    coreExports.info(`Adding release label for version ${versionName} to Linear issue (${linearIssue.identifier})`);
+    const releaseLabel = await ensureReleaseLabel(versionName, githubRepo, linearApiUrl, linearApiKey);
+    await addLabelToIssue(linearIssue, releaseLabel, linearApiUrl, linearApiKey);
+}
+async function attachReleaseLinkToIssue(linearIssue, prUrl) {
+    coreExports.info(`Attaching release link ${versionName} to Linear issue (${linearIssue.identifier}) linked from PR: ${prUrl}`);
+    const releaseTagUrl = `https://github.com/${githubOrg}/${githubRepo}/releases/tag/${versionName}`;
+    await createLinearAttachment(linearIssue.id, releaseTagUrl, versionName, linearApiUrl, linearApiKey);
 }
 
 /**

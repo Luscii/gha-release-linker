@@ -10,7 +10,7 @@ import * as core from '@actions/core'
  * @param versionName - The release version name (e.g., "1.2.3").
  * @param linearApiUrl - The Linear API endpoint URL.
  * @param linearApiKey - The Linear API key for authentication.
- * @returns A promise that resolves to `true` if the attachment was created successfully, or `false` otherwise.
+ * @throws Will throw an error if the attachment creation fails.
  */
 export async function createLinearAttachment(
   issueId: string,
@@ -18,7 +18,7 @@ export async function createLinearAttachment(
   versionName: string,
   linearApiUrl: string,
   linearApiKey: string
-): Promise<boolean> {
+) {
   const graphqlMutation = `
       mutation AttachmentCreate($issueId: String!, $url: String!, $title: String!, $subtitle: String!, $versionName: String!) {
         attachmentCreate(
@@ -70,12 +70,10 @@ export async function createLinearAttachment(
   const { data } = response.data as { data: AttachmentCreateResponse }
   if (data.attachmentCreate && data.attachmentCreate.success) {
     core.info(`Successfully attached "${versionName}" to Linear issue`)
-    return true
   } else {
-    core.info(
+    throw new Error(
       `Failed to attach "${versionName}" to Linear issue:` +
         (response.data as { errors?: any }).errors
     )
-    return false
   }
 }

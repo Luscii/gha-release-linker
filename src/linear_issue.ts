@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios'
-import { LinearIssue, LinearLabel } from './linear.util.js'
+import { LinearIssue, LinearLabel } from './linear.js'
 import * as core from '@actions/core'
 
 interface AttachmentIssueNode {
