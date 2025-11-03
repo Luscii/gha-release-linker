@@ -23,7 +23,7 @@ jobs:
           echo "FOUND: ${{ steps.get-release.outputs.found }}"
           echo "Name: ${{ steps.get-release.outputs.name }}"
           echo "TagName: ${{ steps.get-release.outputs.tag_name }}"
-      - name: "Create Release"
+      - name: 'Create Release'
         uses: actions/github-script@v7
         if: steps.get-release.outputs.found == 'true'
         with:
@@ -51,5 +51,4 @@ jobs:
           BODY: ${{ steps.get-release.outputs.body }}
           URL: ${{ steps.get-release.outputs.url }}
       - name: Echo Summary
-        run:
-          cat $GITHUB_STEP_SUMMARY
+        run: cat $GITHUB_STEP_SUMMARY

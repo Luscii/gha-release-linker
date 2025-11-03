@@ -1,66 +1,64 @@
 version: 1
 labels:
   # VERSION LABELS
-  - label: "version: major"
-    branch: "^major/.+"
-  - label: "version: minor"
-    branch: "^scenario/.+"
-  - label: "version: patch"
-    branch: "^chore/.+"
-  - label: "version: patch"
-    branch: "^bug/.+"
-  - label: "version: patch"
-    branch: "^hotfix/.+"
-  - label: "version: patch"
-    branch: "^cleanup/.+"
-  - label: "version: patch"
-    branch: "^enhancement/.+"
-
+  - label: 'version: major'
+    branch: '^major/.+'
+  - label: 'version: minor'
+    branch: '^scenario/.+'
+  - label: 'version: patch'
+    branch: '^chore/.+'
+  - label: 'version: patch'
+    branch: '^bug/.+'
+  - label: 'version: patch'
+    branch: '^hotfix/.+'
+  - label: 'version: patch'
+    branch: '^cleanup/.+'
+  - label: 'version: patch'
+    branch: '^enhancement/.+'
 
   # Type Labels
-  - label: "type: scenario"
-    branch: "^scenario/.+"
+  - label: 'type: scenario'
+    branch: '^scenario/.+'
   - label: hotfix
-    branch: "^hotfix/.+"
-  - label: "type: bugfix"
-    branch: "^hotfix/.+"
-  - label: "type: bugfix"
-    branch: "^fix/.+"
-  - label: "type: bugfix"
-    branch: "^bug/.+"
+    branch: '^hotfix/.+'
+  - label: 'type: bugfix'
+    branch: '^hotfix/.+'
+  - label: 'type: bugfix'
+    branch: '^fix/.+'
+  - label: 'type: bugfix'
+    branch: '^bug/.+'
 
-
-  - label: "documentation"
+  - label: 'documentation'
     files:
-      - "*.md"
-      - "docs/*"
-  - label: "component: source"
+      - '*.md'
+      - 'docs/*'
+  - label: 'component: source'
     files:
-      - "src/**/*"
-  - label: "component: build"
+      - 'src/**/*'
+  - label: 'component: build'
     files:
-      - "dist/**/*"
-  - label: "component: config"
+      - 'dist/**/*'
+  - label: 'component: config'
     files:
-      - ".github/**/*"
-      - "package*.json"
-      - ".npmrc"
-      - "tsconfig*.json"
-      - ".eslintrc*"
-      - ".prettier*"
-  - label: "component: action"
+      - '.github/**/*'
+      - 'package*.json'
+      - '.npmrc'
+      - 'tsconfig*.json'
+      - '.eslintrc*'
+      - '.prettier*'
+  - label: 'component: action'
     files:
-      - "action.yml"
-      - "action.yaml"
-  - label: "component: tests"
+      - 'action.yml'
+      - 'action.yaml'
+  - label: 'component: tests'
     files:
-      - "__tests__/*"
+      - '__tests__/*'
 
   # PR Size Labels
-  - label: "size: S"
+  - label: 'size: S'
     size-below: 50
-  - label: "size: M"
+  - label: 'size: M'
     size-above: 49
     size-below: 333
-  - label: "size: L"
+  - label: 'size: L'
     size-above: 332

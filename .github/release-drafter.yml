@@ -1,5 +1,5 @@
-name-template: "v$RESOLVED_VERSION"
-tag-template: "$RESOLVED_VERSION"
+name-template: 'v$RESOLVED_VERSION'
+tag-template: '$RESOLVED_VERSION'
 change-template: |
   - $TITLE (#$NUMBER)
 
@@ -9,32 +9,32 @@ template: |
   $CHANGES
 
 prerelease: true
-latest: "false"
+latest: 'false'
 include-pre-releases: true
 
 version-resolver:
   major:
     labels:
-      - "version: major"
+      - 'version: major'
   minor:
     labels:
-      - "version: minor"
+      - 'version: minor'
   patch:
     labels:
-      - "version: patch"
+      - 'version: patch'
   default: patch
 
 categories:
-  - title: "🚀 Features"
+  - title: '🚀 Features'
     labels:
-      - "version: major"
-      - "version: minor"
-  - title: "🧷 Fixes"
+      - 'version: major'
+      - 'version: minor'
+  - title: '🧷 Fixes'
     labels:
-      - "type: bugfix"
-  - title: "📦 Dependencies"
+      - 'type: bugfix'
+  - title: '📦 Dependencies'
     labels:
-      - "type: dependency"
-  - title: "📝 Documentation"
+      - 'type: dependency'
+  - title: '📝 Documentation'
     labels:
-      - "documentation"
+      - 'documentation'
