@@ -1,0 +1,40 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "$RESOLVED_VERSION"
+change-template: |
+  - $TITLE (#$NUMBER)
+
+template: |
+  ## Changes
+
+  $CHANGES
+
+prerelease: true
+latest: "false"
+include-pre-releases: true
+
+version-resolver:
+  major:
+    labels:
+      - "version: major"
+  minor:
+    labels:
+      - "version: minor"
+  patch:
+    labels:
+      - "version: patch"
+  default: patch
+
+categories:
+  - title: "🚀 Features"
+    labels:
+      - "version: major"
+      - "version: minor"
+  - title: "🧷 Fixes"
+    labels:
+      - "type: bugfix"
+  - title: "📦 Dependencies"
+    labels:
+      - "type: dependency"
+  - title: "📝 Documentation"
+    labels:
+      - "documentation"
