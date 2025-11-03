@@ -24,7 +24,7 @@ jobs:
           echo "Name: ${{ steps.get-release.outputs.name }}"
           echo "TagName: ${{ steps.get-release.outputs.tag_name }}"
       - name: 'Create Release'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         if: steps.get-release.outputs.found == 'true'
         with:
           github-token: ${{ secrets.CI_GITHUB_TOKEN }}
