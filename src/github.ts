@@ -32,30 +32,20 @@ export async function getPullRequestUrlsForRelease(
       tag: versionName
     })
 
-    const releaseBody: string | null | undefined = response.data.body
+    let releaseBody: string | null | undefined = response.data.body
+
     if (!releaseBody) {
-      core.info(
-        `Release ${versionName} has no description body to parse for PRs.`
-      )
-      return []
+      releaseBody = await generateNotes()
     }
 
     const prUrls: string[] = []
-    const fullUrlRegex = new RegExp(
-      `https://github.com/${githubOrg}/${githubRepo}/pull/(\\d+)`,
-      'g'
-    )
-    let match: RegExpExecArray | null
-    while ((match = fullUrlRegex.exec(releaseBody)) !== null) {
-      prUrls.push(match[0])
-    }
+    extractPRUrlsFromBody(releaseBody, prUrls)
 
-    const prNumberRegex = /(?:^|\W)#(\d+)(?!\w)/g
-    while ((match = prNumberRegex.exec(releaseBody)) !== null) {
-      const prNumber = match[1]
-      prUrls.push(
-        `https://github.com/${githubOrg}/${githubRepo}/pull/${prNumber}`
-      )
+    // In case the body of the release exists but doesn't contain valid PR links
+    // it will generate the notes for that release and get them from there
+    if (prUrls.length <= 0) {
+      releaseBody = await generateNotes()
+      extractPRUrlsFromBody(releaseBody, prUrls)
     }
 
     if (prUrls.length > 0) {
@@ -80,5 +70,48 @@ export async function getPullRequestUrlsForRelease(
       core.info('GitHub API request failed:' + error.request)
     }
     return []
+  }
+
+  function extractPRUrlsFromBody(releaseBody: string, prUrls: string[]) {
+    // E.g. https://github.com/owner/repo/pull/123
+    const fullUrlRegex = new RegExp(
+      `https://github.com/${githubOrg}/${githubRepo}/pull/(\\d+)`,
+      'g'
+    )
+    let match: RegExpExecArray | null
+    while ((match = fullUrlRegex.exec(releaseBody)) !== null) {
+      prUrls.push(match[0])
+    }
+
+    // E.g. (#123)
+    const prNumberRegex = /(?:^|\W)#(\d+)(?!\w)/g
+    while ((match = prNumberRegex.exec(releaseBody)) !== null) {
+      const prNumber = match[1]
+      prUrls.push(
+        `https://github.com/${githubOrg}/${githubRepo}/pull/${prNumber}`
+      )
+    }
+
+    // E.g. (Owner/Repo#123)
+    const prNumberWithRepoRegex = new RegExp(
+      `\\(?${githubOrg}/${githubRepo}#(\\d+)\\)?`,
+      'g'
+    )
+    while ((match = prNumberWithRepoRegex.exec(releaseBody)) !== null) {
+      const prNumber = match[1]
+      prUrls.push(
+        `https://github.com/${githubOrg}/${githubRepo}/pull/${prNumber}`
+      )
+    }
+  }
+
+  async function generateNotes() {
+    const response = await octokit.repos.generateReleaseNotes({
+      owner: githubOrg,
+      repo: githubRepo,
+      tag_name: versionName
+    })
+
+    return response.data.body
   }
 }
