@@ -6671,11 +6671,11 @@ function requireFormdata () {
 	return formdata;
 }
 
-var body$1;
+var body;
 var hasRequiredBody;
 
 function requireBody () {
-	if (hasRequiredBody) return body$1;
+	if (hasRequiredBody) return body;
 	hasRequiredBody = 1;
 
 	const Busboy = requireMain();
@@ -7283,13 +7283,13 @@ function requireBody () {
 	  return parseMIMEType(contentType)
 	}
 
-	body$1 = {
+	body = {
 	  extractBody,
 	  safelyExtractBody,
 	  cloneBody,
 	  mixinBody
 	};
-	return body$1;
+	return body;
 }
 
 var request$4;
@@ -15579,11 +15579,11 @@ function requireHeaders () {
 	return headers;
 }
 
-var response$1;
+var response;
 var hasRequiredResponse;
 
 function requireResponse () {
-	if (hasRequiredResponse) return response$1;
+	if (hasRequiredResponse) return response;
 	hasRequiredResponse = 1;
 
 	const { Headers, HeadersList, fill } = requireHeaders();
@@ -16147,7 +16147,7 @@ function requireResponse () {
 	  }
 	]);
 
-	response$1 = {
+	response = {
 	  makeNetworkError,
 	  makeResponse,
 	  makeAppropriateNetworkError,
@@ -16155,7 +16155,7 @@ function requireResponse () {
 	  Response,
 	  cloneResponse
 	};
-	return response$1;
+	return response;
 }
 
 /* globals AbortController */
@@ -52490,7 +52490,7 @@ async function getPullRequestUrlsForRelease(versionName, githubToken, githubOrg,
     }
 }
 
-var github$1 = {};
+var github = {};
 
 var context = {};
 
@@ -56425,9 +56425,9 @@ function requireUtils () {
 var hasRequiredGithub;
 
 function requireGithub () {
-	if (hasRequiredGithub) return github$1;
+	if (hasRequiredGithub) return github;
 	hasRequiredGithub = 1;
-	var __createBinding = (github$1 && github$1.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+	var __createBinding = (github && github.__createBinding) || (Object.create ? (function(o, m, k, k2) {
 	    if (k2 === undefined) k2 = k;
 	    var desc = Object.getOwnPropertyDescriptor(m, k);
 	    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
@@ -56438,23 +56438,23 @@ function requireGithub () {
 	    if (k2 === undefined) k2 = k;
 	    o[k2] = m[k];
 	}));
-	var __setModuleDefault = (github$1 && github$1.__setModuleDefault) || (Object.create ? (function(o, v) {
+	var __setModuleDefault = (github && github.__setModuleDefault) || (Object.create ? (function(o, v) {
 	    Object.defineProperty(o, "default", { enumerable: true, value: v });
 	}) : function(o, v) {
 	    o["default"] = v;
 	});
-	var __importStar = (github$1 && github$1.__importStar) || function (mod) {
+	var __importStar = (github && github.__importStar) || function (mod) {
 	    if (mod && mod.__esModule) return mod;
 	    var result = {};
 	    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
 	    __setModuleDefault(result, mod);
 	    return result;
 	};
-	Object.defineProperty(github$1, "__esModule", { value: true });
-	github$1.getOctokit = github$1.context = void 0;
+	Object.defineProperty(github, "__esModule", { value: true });
+	github.getOctokit = github.context = void 0;
 	const Context = __importStar(requireContext());
 	const utils_1 = requireUtils();
-	github$1.context = new Context.Context();
+	github.context = new Context.Context();
 	/**
 	 * Returns a hydrated octokit ready to use for GitHub Actions
 	 *
@@ -56465,9 +56465,9 @@ function requireGithub () {
 	    const GitHubWithPlugins = utils_1.GitHub.plugin(...additionalPlugins);
 	    return new GitHubWithPlugins((0, utils_1.getOctokitOptions)(token, options));
 	}
-	github$1.getOctokit = getOctokit;
+	github.getOctokit = getOctokit;
 	
-	return github$1;
+	return github;
 }
 
 var githubExports = requireGithub();
@@ -56502,7 +56502,7 @@ function getOwnerAndRepoFromContext() {
     return { owner, repo };
 }
 
-const { versionName: versionName$1, releaseMode, githubRepo: githubRepo$1, githubOrg: githubOrg$1, githubToken, linearApiKey, linearApiUrl } = config;
+const { versionName, releaseMode, githubRepo, githubOrg, githubToken, linearApiKey, linearApiUrl } = config;
 const doLink = releaseMode === ReleaseMode.Link || releaseMode === ReleaseMode.Both;
 const doLabel = releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both;
 let releaseLabel;
@@ -56510,13 +56510,13 @@ let releaseLabel;
  * Main function to coordinate finding issues and attaching release links.
  */
 async function processRelease() {
-    const prUrls = await getPullRequestUrlsForRelease(versionName$1, githubToken, githubOrg$1, githubRepo$1);
+    const prUrls = await getPullRequestUrlsForRelease(versionName, githubToken, githubOrg, githubRepo);
     if (prUrls.length === 0) {
-        coreExports.info(`No PRs found for release ${versionName$1} or could not fetch them. No Linear issues to update.`);
+        coreExports.info(`No PRs found for release ${versionName} or could not fetch them. No Linear issues to update.`);
         return;
     }
     if (doLabel) {
-        releaseLabel = await ensureReleaseLabel(versionName$1, githubRepo$1, linearApiUrl, linearApiKey);
+        releaseLabel = await ensureReleaseLabel(versionName, githubRepo, linearApiUrl, linearApiKey);
     }
     const updatedIssues = new Set();
     await Promise.all(prUrls.map(async (prUrl) => {
@@ -56526,10 +56526,10 @@ async function processRelease() {
         }
     }));
     if (updatedIssues.size > 0) {
-        coreExports.info(`Successfully updated ${updatedIssues.size} Linear issue(s) for release ${versionName$1}.`);
+        coreExports.info(`Successfully updated ${updatedIssues.size} Linear issue(s) for release ${versionName}.`);
     }
     else {
-        coreExports.info(`No Linear issues were updated for release ${versionName$1}.`);
+        coreExports.info(`No Linear issues were updated for release ${versionName}.`);
     }
 }
 async function updateLinearIssueWithRelease(prUrl) {
@@ -56555,7 +56555,7 @@ async function updateLinearIssueWithRelease(prUrl) {
     }
     if (doLabel) {
         try {
-            coreExports.info(`Adding release label for version ${versionName$1} to Linear issue (${linearIssue.identifier})`);
+            coreExports.info(`Adding release label for version ${versionName} to Linear issue (${linearIssue.identifier})`);
             await addLabelToIssue(linearIssue, releaseLabel, linearApiUrl, linearApiKey);
             anySuccess = true;
         }
@@ -56572,9 +56572,9 @@ async function updateLinearIssueWithRelease(prUrl) {
     }
 }
 async function attachReleaseLinkToIssue(linearIssue, prUrl) {
-    coreExports.info(`Attaching release link ${versionName$1} to Linear issue (${linearIssue.identifier}) linked from PR: ${prUrl}`);
-    const releaseTagUrl = `https://github.com/${githubOrg$1}/${githubRepo$1}/releases/tag/${versionName$1}`;
-    await createLinearAttachment(linearIssue.id, releaseTagUrl, versionName$1, linearApiUrl, linearApiKey);
+    coreExports.info(`Attaching release link ${versionName} to Linear issue (${linearIssue.identifier}) linked from PR: ${prUrl}`);
+    const releaseTagUrl = `https://github.com/${githubOrg}/${githubRepo}/releases/tag/${versionName}`;
+    await createLinearAttachment(linearIssue.id, releaseTagUrl, versionName, linearApiUrl, linearApiKey);
 }
 
 /**
