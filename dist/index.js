@@ -47891,7 +47891,7 @@ async function createLinearAttachment(issueId, url, versionName, linearApiUrl, l
         variables: {
             issueId,
             url,
-            title: `v${versionName}`,
+            title: `${versionName}`,
             subtitle: `Released in version ${versionName}`,
             versionName
         }
