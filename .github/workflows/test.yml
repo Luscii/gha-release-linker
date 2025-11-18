@@ -48,7 +48,7 @@ jobs:
         id: test-action
         uses: ./
         with:
-          version-name: 999
+          version-name: 1.0.0
           linear-api-key: ${{ secrets.LINEAR_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           release-mode: both
