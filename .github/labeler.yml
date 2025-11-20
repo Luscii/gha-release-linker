@@ -5,6 +5,8 @@ labels:
     branch: '^major/.+'
   - label: 'version: minor'
     branch: '^scenario/.+'
+  - label: 'version: minor'
+    branch: '^feature/.+'
   - label: 'version: patch'
     branch: '^chore/.+'
   - label: 'version: patch'
