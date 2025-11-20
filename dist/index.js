@@ -56137,16 +56137,19 @@ async function processRelease() {
         coreExports.info(`No PRs found for release ${versionName} or could not fetch them. No Linear issues to update.`);
         return;
     }
-    let releaseLabel;
     const updatedIssues = new Set();
+    const foundLinearIssues = [];
     await Promise.all(prUrls.map(async (prUrl) => {
         const linearIssue = await getLinearIssueFromPrUrl(prUrl, linearApiUrl, linearApiKey);
-        if (!linearIssue) {
-            return;
+        if (linearIssue) {
+            foundLinearIssues.push({ linearIssue: linearIssue, prUrl: prUrl });
         }
-        if (!releaseLabel && doLabel) {
-            releaseLabel = await ensureReleaseLabel(versionName, githubRepo, linearApiUrl, linearApiKey);
-        }
+    }));
+    let releaseLabel;
+    if (foundLinearIssues.length > 0 && doLabel) {
+        releaseLabel = await ensureReleaseLabel(versionName, githubRepo, linearApiUrl, linearApiKey);
+    }
+    await Promise.all(foundLinearIssues.map(async ({ linearIssue, prUrl }) => {
         const success = await updateLinearIssueWithRelease(linearIssue, prUrl, releaseLabel);
         if (success) {
             updatedIssues.add(linearIssue.id);

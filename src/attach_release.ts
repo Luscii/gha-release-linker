@@ -39,8 +39,13 @@ export async function processRelease(): Promise<void> {
     return
   }
 
-  let releaseLabel: LinearLabel
   const updatedIssues = new Set()
+  interface IssuePullRequestLink {
+    linearIssue: LinearIssue
+    prUrl: string
+  }
+
+  const foundLinearIssues: IssuePullRequestLink[] = []
   await Promise.all(
     prUrls.map(async (prUrl) => {
       const linearIssue = await getLinearIssueFromPrUrl(
@@ -48,28 +53,36 @@ export async function processRelease(): Promise<void> {
         linearApiUrl,
         linearApiKey
       )
-      if (!linearIssue) {
-        return
-      }
 
-      if (!releaseLabel && doLabel) {
-        releaseLabel = await ensureReleaseLabel(
-          versionName,
-          githubRepo,
-          linearApiUrl,
-          linearApiKey
-        )
-      }
-
-      const success = await updateLinearIssueWithRelease(
-        linearIssue,
-        prUrl,
-        releaseLabel
-      )
-      if (success) {
-        updatedIssues.add(linearIssue.id)
+      if (linearIssue) {
+        foundLinearIssues.push({ linearIssue: linearIssue, prUrl: prUrl })
       }
     })
+  )
+
+  let releaseLabel: LinearLabel | undefined
+  if (foundLinearIssues.length > 0 && doLabel) {
+    releaseLabel = await ensureReleaseLabel(
+      versionName,
+      githubRepo,
+      linearApiUrl,
+      linearApiKey
+    )
+  }
+
+  await Promise.all(
+    foundLinearIssues.map(
+      async ({ linearIssue, prUrl }: IssuePullRequestLink) => {
+        const success = await updateLinearIssueWithRelease(
+          linearIssue,
+          prUrl,
+          releaseLabel
+        )
+        if (success) {
+          updatedIssues.add(linearIssue.id)
+        }
+      }
+    )
   )
 
   if (updatedIssues.size > 0) {
