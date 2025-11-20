@@ -8,7 +8,7 @@ export async function getPullRequestUrlsForRelease(
   githubRepo: string
 ): Promise<string[]> {
   core.info(
-    `Fetching PRs between previous and current release tags using compareCommits for '${versionName}'...`
+    `Fetching PRs between previous and current release tags for '${versionName}'...`
   )
 
   const octokit: Octokit = new Octokit({ auth: githubToken })
@@ -99,7 +99,7 @@ async function extractPrUrlsFromCommits(
     }
   }
 
-  core.info(`Discovered ${prUrls.size} unique PR URL(s) in bounded diff.`)
+  core.info(`Discovered ${prUrls.size} unique PR URL(s) in commits.`)
   return Array.from(prUrls.values())
 }
 
@@ -132,15 +132,34 @@ async function getPreviousReleaseTag(
   createdAt: string,
   versionName: string
 ) {
-  const releases = await octokit.repos.listReleases({
-    owner: githubOrg,
-    repo: githubRepo,
-    per_page: 100
-  })
-  const previous = releases.data
-    .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
-    .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
-  const previousReleaseTag = previous?.tag_name
+  let page = 1
+  const perPage = 100
+  let previousReleaseTag: string | undefined
+
+  while (!previousReleaseTag) {
+    const releasesPage = await octokit.repos.listReleases({
+      owner: githubOrg,
+      repo: githubRepo,
+      per_page: perPage,
+      page
+    })
+
+    const candidates = releasesPage.data
+      .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
+      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))
+
+    if (candidates.length > 0) {
+      previousReleaseTag = candidates[0].tag_name
+      break
+    }
+
+    if (releasesPage.data.length < perPage) {
+      break
+    }
+
+    page += 1
+  }
+
   return previousReleaseTag
 }
 

@@ -51968,7 +51968,7 @@ const Octokit$1 = Octokit$2.plugin(requestLog, legacyRestEndpointMethods$1, pagi
 );
 
 async function getPullRequestUrlsForRelease(versionName, githubToken, githubOrg, githubRepo) {
-    coreExports.info(`Fetching PRs between previous and current release tags using compareCommits for '${versionName}'...`);
+    coreExports.info(`Fetching PRs between previous and current release tags for '${versionName}'...`);
     const octokit = new Octokit$1({ auth: githubToken });
     const currentRelease = await octokit.repos.getReleaseByTag({
         owner: githubOrg,
@@ -52013,7 +52013,7 @@ async function extractPrUrlsFromCommits(commits, octokit, githubOrg, githubRepo)
                 prUrls.add(pr.url);
         }
     }
-    coreExports.info(`Discovered ${prUrls.size} unique PR URL(s) in bounded diff.`);
+    coreExports.info(`Discovered ${prUrls.size} unique PR URL(s) in commits.`);
     return Array.from(prUrls.values());
 }
 async function compareCommitsBetweenReleases(octokit, githubOrg, githubRepo, previousReleaseTag, versionName) {
@@ -52028,15 +52028,28 @@ async function compareCommitsBetweenReleases(octokit, githubOrg, githubRepo, pre
     return commits.map((c) => ({ sha: c.sha }));
 }
 async function getPreviousReleaseTag(octokit, githubOrg, githubRepo, createdAt, versionName) {
-    const releases = await octokit.repos.listReleases({
-        owner: githubOrg,
-        repo: githubRepo,
-        per_page: 100
-    });
-    const previous = releases.data
-        .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
-        .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
-    const previousReleaseTag = previous?.tag_name;
+    let page = 1;
+    const perPage = 100;
+    let previousReleaseTag;
+    while (!previousReleaseTag) {
+        const releasesPage = await octokit.repos.listReleases({
+            owner: githubOrg,
+            repo: githubRepo,
+            per_page: perPage,
+            page
+        });
+        const candidates = releasesPage.data
+            .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
+            .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+        if (candidates.length > 0) {
+            previousReleaseTag = candidates[0].tag_name;
+            break;
+        }
+        if (releasesPage.data.length < perPage) {
+            break;
+        }
+        page += 1;
+    }
     return previousReleaseTag;
 }
 async function fetchFullHistoryPRs(client, owner, repo, tag) {
