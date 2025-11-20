@@ -51967,7 +51967,6 @@ const Octokit$1 = Octokit$2.plugin(requestLog, legacyRestEndpointMethods$1, pagi
   }
 );
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Fetches Pull Request URLs associated with a given GitHub release tag.
  *

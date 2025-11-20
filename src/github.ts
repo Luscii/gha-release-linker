@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Octokit } from '@octokit/rest'
 import * as core from '@actions/core'
 
@@ -95,8 +94,16 @@ export async function getPullRequestUrlsForRelease(
   }`
 
   for (const c of commits) {
-    const sha = (c as any).sha
-    const resp: any = await octokit.graphql(commitQuery, {
+    const sha = c.sha
+    const resp = await octokit.graphql<{
+      repository?: {
+        object?: {
+          associatedPullRequests?: {
+            nodes?: { url?: string }[]
+          }
+        }
+      }
+    }>(commitQuery, {
       owner: githubOrg,
       repo: githubRepo,
       oid: sha
@@ -149,9 +156,30 @@ async function fetchFullHistoryPRs(
   let page = 0
   const pageSize = 100
 
+  interface HistoryQueryResponse {
+    repository?: {
+      release?: {
+        tagCommit?: {
+          history?: {
+            pageInfo?: {
+              hasNextPage?: boolean
+              endCursor?: string
+            }
+            nodes?: {
+              associatedPullRequests?: {
+                nodes?: { url?: string }[]
+              }
+            }[]
+          }
+        }
+      }
+    }
+  }
+
   while (true) {
     page += 1
-    const resp: any = await client.graphql(historyQuery, {
+
+    const resp = await client.graphql<HistoryQueryResponse>(historyQuery, {
       owner,
       repo,
       tag,
