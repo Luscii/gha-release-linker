@@ -51967,55 +51967,26 @@ const Octokit$1 = Octokit$2.plugin(requestLog, legacyRestEndpointMethods$1, pagi
   }
 );
 
-/**
- * Fetches Pull Request URLs associated with a given GitHub release tag.
- *
- * Strategy:
- * 1. Attempt to locate the previous release with the same target commitish.
- *    If found, compute the bounded diff (previous tag -> current tag) and
- *    gather PRs only from commits unique to the new release.
- * 2. If no previous release is found, fall back to traversing the entire
- *    commit ancestry from the tag's commit using GraphQL pagination.
- *
- */
 async function getPullRequestUrlsForRelease(versionName, githubToken, githubOrg, githubRepo) {
     coreExports.info(`Fetching PRs between previous and current release tags using compareCommits for '${versionName}'...`);
     const octokit = new Octokit$1({ auth: githubToken });
-    // Resolve current release
     const currentRelease = await octokit.repos.getReleaseByTag({
         owner: githubOrg,
         repo: githubRepo,
         tag: versionName
     });
     const createdAt = currentRelease.data.created_at;
-    // Find previous release sharing the same target_commitish
-    const releases = await octokit.repos.listReleases({
-        owner: githubOrg,
-        repo: githubRepo,
-        per_page: 100
-    });
-    const previous = releases.data
-        .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
-        .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
-    const previousReleaseTag = previous?.tag_name;
+    const previousReleaseTag = await getPreviousReleaseTag(octokit, githubOrg, githubRepo, createdAt, versionName);
     if (!previousReleaseTag) {
         coreExports.info('No previous release found; falling back to full commit history traversal from tag commit.');
-        const fullHistoryPrs = await fetchFullHistoryPRs(octokit, githubOrg, githubRepo, versionName);
-        coreExports.info(`Full history traversal complete; discovered ${fullHistoryPrs.size} unique PR URL(s).`);
-        return Array.from(fullHistoryPrs.values());
+        return await fetchFullHistoryPRs(octokit, githubOrg, githubRepo, versionName);
     }
     coreExports.info(`Previous release detected: ${previousReleaseTag}. Computing diff ${previousReleaseTag} -> ${versionName}.`);
-    // Compare commits between previous and current tag
-    const compare = await octokit.repos.compareCommits({
-        owner: githubOrg,
-        repo: githubRepo,
-        base: previousReleaseTag,
-        head: versionName
-    });
-    const commits = compare.data.commits || [];
-    coreExports.info(`Found ${commits.length} commit(s) unique to ${versionName} over ${previousReleaseTag}. Fetching associated PRs...`);
+    const commits = await compareCommitsBetweenReleases(octokit, githubOrg, githubRepo, previousReleaseTag, versionName);
+    return await extractPrUrlsFromCommits(commits, octokit, githubOrg, githubRepo);
+}
+async function extractPrUrlsFromCommits(commits, octokit, githubOrg, githubRepo) {
     const prUrls = new Set();
-    // GraphQL per commit to fetch associated pull requests
     const commitQuery = `query CommitAssociatedPRs($owner: String!, $repo: String!, $oid: GitObjectID!) {
     repository(owner: $owner, name: $repo) {
       object(oid: $oid) {
@@ -52044,6 +52015,29 @@ async function getPullRequestUrlsForRelease(versionName, githubToken, githubOrg,
     }
     coreExports.info(`Discovered ${prUrls.size} unique PR URL(s) in bounded diff.`);
     return Array.from(prUrls.values());
+}
+async function compareCommitsBetweenReleases(octokit, githubOrg, githubRepo, previousReleaseTag, versionName) {
+    const compare = await octokit.repos.compareCommits({
+        owner: githubOrg,
+        repo: githubRepo,
+        base: previousReleaseTag,
+        head: versionName
+    });
+    const commits = compare.data.commits || [];
+    coreExports.info(`Found ${commits.length} commit(s) unique to ${versionName} over ${previousReleaseTag}. Fetching associated PRs...`);
+    return commits.map((c) => ({ sha: c.sha }));
+}
+async function getPreviousReleaseTag(octokit, githubOrg, githubRepo, createdAt, versionName) {
+    const releases = await octokit.repos.listReleases({
+        owner: githubOrg,
+        repo: githubRepo,
+        per_page: 100
+    });
+    const previous = releases.data
+        .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
+        .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
+    const previousReleaseTag = previous?.tag_name;
+    return previousReleaseTag;
 }
 async function fetchFullHistoryPRs(client, owner, repo, tag) {
     const historyQuery = `
@@ -52102,7 +52096,8 @@ async function fetchFullHistoryPRs(client, owner, repo, tag) {
         }
         cursor = history.pageInfo.endCursor;
     }
-    return prSet;
+    coreExports.info(`Full history traversal complete; discovered ${prSet.size} unique PR URL(s).`);
+    return Array.from(prSet.values());
 }
 
 var github = {};
@@ -56117,7 +56112,7 @@ function getOwnerAndRepoFromContext() {
     return { owner, repo };
 }
 
-const { versionName, releaseMode, githubRepo, githubOrg, githubToken, linearApiKey, linearApiUrl } = config;
+const { versionName, releaseMode, githubRepo: githubRepo$1, githubOrg: githubOrg$1, githubToken, linearApiKey, linearApiUrl } = config;
 const doLink = releaseMode === ReleaseMode.Link || releaseMode === ReleaseMode.Both;
 const doLabel = releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both;
 let releaseLabel;
@@ -56125,13 +56120,13 @@ let releaseLabel;
  * Main function to coordinate finding issues and attaching release links.
  */
 async function processRelease() {
-    const prUrls = await getPullRequestUrlsForRelease(versionName, githubToken, githubOrg, githubRepo);
+    const prUrls = await getPullRequestUrlsForRelease(versionName, githubToken, githubOrg$1, githubRepo$1);
     if (prUrls.length === 0) {
         coreExports.info(`No PRs found for release ${versionName} or could not fetch them. No Linear issues to update.`);
         return;
     }
     if (doLabel) {
-        releaseLabel = await ensureReleaseLabel(versionName, githubRepo, linearApiUrl, linearApiKey);
+        releaseLabel = await ensureReleaseLabel(versionName, githubRepo$1, linearApiUrl, linearApiKey);
     }
     const updatedIssues = new Set();
     await Promise.all(prUrls.map(async (prUrl) => {
@@ -56188,7 +56183,7 @@ async function updateLinearIssueWithRelease(prUrl) {
 }
 async function attachReleaseLinkToIssue(linearIssue, prUrl) {
     coreExports.info(`Attaching release link ${versionName} to Linear issue (${linearIssue.identifier}) linked from PR: ${prUrl}`);
-    const releaseTagUrl = `https://github.com/${githubOrg}/${githubRepo}/releases/tag/${versionName}`;
+    const releaseTagUrl = `https://github.com/${githubOrg$1}/${githubRepo$1}/releases/tag/${versionName}`;
     await createLinearAttachment(linearIssue.id, releaseTagUrl, versionName, linearApiUrl, linearApiKey);
 }
 

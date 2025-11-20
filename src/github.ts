@@ -1,17 +1,6 @@
 import { Octokit } from '@octokit/rest'
 import * as core from '@actions/core'
 
-/**
- * Fetches Pull Request URLs associated with a given GitHub release tag.
- *
- * Strategy:
- * 1. Attempt to locate the previous release with the same target commitish.
- *    If found, compute the bounded diff (previous tag -> current tag) and
- *    gather PRs only from commits unique to the new release.
- * 2. If no previous release is found, fall back to traversing the entire
- *    commit ancestry from the tag's commit using GraphQL pagination.
- *
- */
 export async function getPullRequestUrlsForRelease(
   versionName: string,
   githubToken: string,
@@ -22,9 +11,8 @@ export async function getPullRequestUrlsForRelease(
     `Fetching PRs between previous and current release tags using compareCommits for '${versionName}'...`
   )
 
-  const octokit = new Octokit({ auth: githubToken })
+  const octokit: Octokit = new Octokit({ auth: githubToken })
 
-  // Resolve current release
   const currentRelease = await octokit.repos.getReleaseByTag({
     owner: githubOrg,
     repo: githubRepo,
@@ -33,52 +21,49 @@ export async function getPullRequestUrlsForRelease(
 
   const createdAt = currentRelease.data.created_at
 
-  // Find previous release sharing the same target_commitish
-  const releases = await octokit.repos.listReleases({
-    owner: githubOrg,
-    repo: githubRepo,
-    per_page: 100
-  })
-  const previous = releases.data
-    .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
-    .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
-  const previousReleaseTag = previous?.tag_name
+  const previousReleaseTag = await getPreviousReleaseTag(
+    octokit,
+    githubOrg,
+    githubRepo,
+    createdAt,
+    versionName
+  )
 
   if (!previousReleaseTag) {
     core.info(
       'No previous release found; falling back to full commit history traversal from tag commit.'
     )
-    const fullHistoryPrs = await fetchFullHistoryPRs(
+
+    return await fetchFullHistoryPRs(
       octokit,
       githubOrg,
       githubRepo,
       versionName
     )
-    core.info(
-      `Full history traversal complete; discovered ${fullHistoryPrs.size} unique PR URL(s).`
-    )
-    return Array.from(fullHistoryPrs.values())
   }
 
   core.info(
     `Previous release detected: ${previousReleaseTag}. Computing diff ${previousReleaseTag} -> ${versionName}.`
   )
 
-  // Compare commits between previous and current tag
-  const compare = await octokit.repos.compareCommits({
-    owner: githubOrg,
-    repo: githubRepo,
-    base: previousReleaseTag,
-    head: versionName
-  })
-
-  const commits = compare.data.commits || []
-  core.info(
-    `Found ${commits.length} commit(s) unique to ${versionName} over ${previousReleaseTag}. Fetching associated PRs...`
+  const commits = await compareCommitsBetweenReleases(
+    octokit,
+    githubOrg,
+    githubRepo,
+    previousReleaseTag,
+    versionName
   )
 
+  return await extractPrUrlsFromCommits(commits, octokit, githubOrg, githubRepo)
+}
+
+async function extractPrUrlsFromCommits(
+  commits: { sha: string }[],
+  octokit: Octokit,
+  githubOrg: string,
+  githubRepo: string
+) {
   const prUrls = new Set<string>()
-  // GraphQL per commit to fetch associated pull requests
   const commitQuery = `query CommitAssociatedPRs($owner: String!, $repo: String!, $oid: GitObjectID!) {
     repository(owner: $owner, name: $repo) {
       object(oid: $oid) {
@@ -118,12 +103,53 @@ export async function getPullRequestUrlsForRelease(
   return Array.from(prUrls.values())
 }
 
+async function compareCommitsBetweenReleases(
+  octokit: Octokit,
+  githubOrg: string,
+  githubRepo: string,
+  previousReleaseTag: string,
+  versionName: string
+) {
+  const compare = await octokit.repos.compareCommits({
+    owner: githubOrg,
+    repo: githubRepo,
+    base: previousReleaseTag,
+    head: versionName
+  })
+
+  const commits = compare.data.commits || []
+  core.info(
+    `Found ${commits.length} commit(s) unique to ${versionName} over ${previousReleaseTag}. Fetching associated PRs...`
+  )
+
+  return commits.map((c) => ({ sha: c.sha }))
+}
+
+async function getPreviousReleaseTag(
+  octokit: Octokit,
+  githubOrg: string,
+  githubRepo: string,
+  createdAt: string,
+  versionName: string
+) {
+  const releases = await octokit.repos.listReleases({
+    owner: githubOrg,
+    repo: githubRepo,
+    per_page: 100
+  })
+  const previous = releases.data
+    .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
+    .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
+  const previousReleaseTag = previous?.tag_name
+  return previousReleaseTag
+}
+
 async function fetchFullHistoryPRs(
   client: Octokit,
   owner: string,
   repo: string,
   tag: string
-): Promise<Set<string>> {
+) {
   const historyQuery = `
     query ReleaseCommitsAndPRUrls(
       $owner: String!
@@ -209,5 +235,9 @@ async function fetchFullHistoryPRs(
     cursor = history.pageInfo.endCursor
   }
 
-  return prSet
+  core.info(
+    `Full history traversal complete; discovered ${prSet.size} unique PR URL(s).`
+  )
+
+  return Array.from(prSet.values())
 }
