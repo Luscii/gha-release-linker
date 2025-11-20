@@ -56125,26 +56125,30 @@ function getOwnerAndRepoFromContext() {
     return { owner, repo };
 }
 
-const { versionName, releaseMode, githubRepo: githubRepo$1, githubOrg: githubOrg$1, githubToken, linearApiKey, linearApiUrl } = config;
+const { versionName, releaseMode, githubRepo, githubOrg, githubToken, linearApiKey, linearApiUrl } = config;
 const doLink = releaseMode === ReleaseMode.Link || releaseMode === ReleaseMode.Both;
 const doLabel = releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both;
-let releaseLabel;
 /**
  * Main function to coordinate finding issues and attaching release links.
  */
 async function processRelease() {
-    const prUrls = await getPullRequestUrlsForRelease(versionName, githubToken, githubOrg$1, githubRepo$1);
+    const prUrls = await getPullRequestUrlsForRelease(versionName, githubToken, githubOrg, githubRepo);
     if (prUrls.length === 0) {
         coreExports.info(`No PRs found for release ${versionName} or could not fetch them. No Linear issues to update.`);
         return;
     }
-    if (doLabel) {
-        releaseLabel = await ensureReleaseLabel(versionName, githubRepo$1, linearApiUrl, linearApiKey);
-    }
+    let releaseLabel;
     const updatedIssues = new Set();
     await Promise.all(prUrls.map(async (prUrl) => {
-        const linearIssue = await updateLinearIssueWithRelease(prUrl);
-        if (linearIssue) {
+        const linearIssue = await getLinearIssueFromPrUrl(prUrl, linearApiUrl, linearApiKey);
+        if (!linearIssue) {
+            return;
+        }
+        if (!releaseLabel && doLabel) {
+            releaseLabel = await ensureReleaseLabel(versionName, githubRepo, linearApiUrl, linearApiKey);
+        }
+        const success = await updateLinearIssueWithRelease(linearIssue, prUrl, releaseLabel);
+        if (success) {
             updatedIssues.add(linearIssue.id);
         }
     }));
@@ -56155,12 +56159,7 @@ async function processRelease() {
         coreExports.info(`No Linear issues were updated for release ${versionName}.`);
     }
 }
-async function updateLinearIssueWithRelease(prUrl) {
-    const linearIssue = await getLinearIssueFromPrUrl(prUrl, linearApiUrl, linearApiKey);
-    if (!linearIssue) {
-        coreExports.info(`No Linear issue linked to PR: ${prUrl}. Skipping.`);
-        return;
-    }
+async function updateLinearIssueWithRelease(linearIssue, prUrl, releaseLabel) {
     let anySuccess = false;
     if (doLink) {
         try {
@@ -56176,7 +56175,7 @@ async function updateLinearIssueWithRelease(prUrl) {
     else {
         coreExports.info('Skipping link attachment (mode does not include link).');
     }
-    if (doLabel) {
+    if (releaseLabel) {
         try {
             coreExports.info(`Adding release label for version ${versionName} to Linear issue (${linearIssue.identifier})`);
             await addLabelToIssue(linearIssue, releaseLabel, linearApiUrl, linearApiKey);
@@ -56190,13 +56189,11 @@ async function updateLinearIssueWithRelease(prUrl) {
     else {
         coreExports.info('Skipping label update (mode does not include label).');
     }
-    if (anySuccess) {
-        return linearIssue;
-    }
+    return anySuccess;
 }
 async function attachReleaseLinkToIssue(linearIssue, prUrl) {
     coreExports.info(`Attaching release link ${versionName} to Linear issue (${linearIssue.identifier}) linked from PR: ${prUrl}`);
-    const releaseTagUrl = `https://github.com/${githubOrg$1}/${githubRepo$1}/releases/tag/${versionName}`;
+    const releaseTagUrl = `https://github.com/${githubOrg}/${githubRepo}/releases/tag/${versionName}`;
     await createLinearAttachment(linearIssue.id, releaseTagUrl, versionName, linearApiUrl, linearApiKey);
 }
 

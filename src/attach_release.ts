@@ -21,8 +21,6 @@ const doLink =
 const doLabel =
   releaseMode === ReleaseMode.Label || releaseMode === ReleaseMode.Both
 
-let releaseLabel: LinearLabel
-
 /**
  * Main function to coordinate finding issues and attaching release links.
  */
@@ -41,20 +39,34 @@ export async function processRelease(): Promise<void> {
     return
   }
 
-  if (doLabel) {
-    releaseLabel = await ensureReleaseLabel(
-      versionName,
-      githubRepo,
-      linearApiUrl,
-      linearApiKey
-    )
-  }
-
+  let releaseLabel: LinearLabel
   const updatedIssues = new Set()
   await Promise.all(
     prUrls.map(async (prUrl) => {
-      const linearIssue = await updateLinearIssueWithRelease(prUrl)
-      if (linearIssue) {
+      const linearIssue = await getLinearIssueFromPrUrl(
+        prUrl,
+        linearApiUrl,
+        linearApiKey
+      )
+      if (!linearIssue) {
+        return
+      }
+
+      if (!releaseLabel && doLabel) {
+        releaseLabel = await ensureReleaseLabel(
+          versionName,
+          githubRepo,
+          linearApiUrl,
+          linearApiKey
+        )
+      }
+
+      const success = await updateLinearIssueWithRelease(
+        linearIssue,
+        prUrl,
+        releaseLabel
+      )
+      if (success) {
         updatedIssues.add(linearIssue.id)
       }
     })
@@ -69,17 +81,11 @@ export async function processRelease(): Promise<void> {
   }
 }
 
-async function updateLinearIssueWithRelease(prUrl: string) {
-  const linearIssue = await getLinearIssueFromPrUrl(
-    prUrl,
-    linearApiUrl,
-    linearApiKey
-  )
-  if (!linearIssue) {
-    core.info(`No Linear issue linked to PR: ${prUrl}. Skipping.`)
-    return
-  }
-
+async function updateLinearIssueWithRelease(
+  linearIssue: LinearIssue,
+  prUrl: string,
+  releaseLabel: LinearLabel | undefined
+) {
   let anySuccess = false
   if (doLink) {
     try {
@@ -97,7 +103,7 @@ async function updateLinearIssueWithRelease(prUrl: string) {
     core.info('Skipping link attachment (mode does not include link).')
   }
 
-  if (doLabel) {
+  if (releaseLabel) {
     try {
       core.info(
         `Adding release label for version ${versionName} to Linear issue (${linearIssue.identifier})`
@@ -118,9 +124,7 @@ async function updateLinearIssueWithRelease(prUrl: string) {
     core.info('Skipping label update (mode does not include label).')
   }
 
-  if (anySuccess) {
-    return linearIssue
-  }
+  return anySuccess
 }
 
 async function attachReleaseLinkToIssue(
