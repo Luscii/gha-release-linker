@@ -32,7 +32,6 @@ export async function getPullRequestUrlsForRelease(
     tag: versionName
   })
 
-  const targetCommitish = currentRelease.data.target_commitish
   const createdAt = currentRelease.data.created_at
 
   // Find previous release sharing the same target_commitish
@@ -42,12 +41,7 @@ export async function getPullRequestUrlsForRelease(
     per_page: 100
   })
   const previous = releases.data
-    .filter(
-      (r) =>
-        r.created_at < createdAt &&
-        r.tag_name !== versionName &&
-        r.target_commitish === targetCommitish
-    )
+    .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
     .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
   const previousReleaseTag = previous?.tag_name
 
