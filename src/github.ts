@@ -1,17 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Octokit } from '@octokit/rest'
 import * as core from '@actions/core'
 
-/**
- * Fetches Pull Request URLs associated with a given GitHub release using Octokit.
- * This function assumes PRs are linked in the release body (description) either
- * as full URLs or as #PR_NUMBER (e.g., #123).
- * @param versionName - The name of the release version (e.g., "v4.9.2").
- * @param githubToken - GitHub token for authentication.
- * @param githubOrg - The GitHub organization name.
- * @param githubRepo - The GitHub repository name.
- * @returns An array of GitHub Pull Request URLs.
- */
 export async function getPullRequestUrlsForRelease(
   versionName: string,
   githubToken: string,
@@ -19,66 +8,255 @@ export async function getPullRequestUrlsForRelease(
   githubRepo: string
 ): Promise<string[]> {
   core.info(
-    `Attempting to fetch PRs for release version: ${versionName} from GitHub...`
+    `Fetching PRs between previous and current release tags for '${versionName}'...`
   )
 
-  // Initialize Octokit for GitHub API interactions specific to this util
-  const octokit = new Octokit({ auth: githubToken })
+  const octokit: Octokit = new Octokit({ auth: githubToken })
 
-  try {
-    const response = await octokit.repos.getReleaseByTag({
+  const currentRelease = await octokit.repos.getReleaseByTag({
+    owner: githubOrg,
+    repo: githubRepo,
+    tag: versionName
+  })
+
+  const createdAt = currentRelease.data.created_at
+
+  const previousReleaseTag = await getPreviousReleaseTag(
+    octokit,
+    githubOrg,
+    githubRepo,
+    createdAt,
+    versionName
+  )
+
+  if (!previousReleaseTag) {
+    core.info(
+      'No previous release found; falling back to full commit history traversal from tag commit.'
+    )
+
+    return await fetchFullHistoryPRs(
+      octokit,
+      githubOrg,
+      githubRepo,
+      versionName
+    )
+  }
+
+  core.info(
+    `Previous release detected: ${previousReleaseTag}. Computing diff ${previousReleaseTag} -> ${versionName}.`
+  )
+
+  const commits = await compareCommitsBetweenReleases(
+    octokit,
+    githubOrg,
+    githubRepo,
+    previousReleaseTag,
+    versionName
+  )
+
+  return await extractPrUrlsFromCommits(commits, octokit, githubOrg, githubRepo)
+}
+
+async function extractPrUrlsFromCommits(
+  commits: { sha: string }[],
+  octokit: Octokit,
+  githubOrg: string,
+  githubRepo: string
+) {
+  const prUrls = new Set<string>()
+  const commitQuery = `query CommitAssociatedPRs($owner: String!, $repo: String!, $oid: GitObjectID!) {
+    repository(owner: $owner, name: $repo) {
+      object(oid: $oid) {
+        ... on Commit {
+          associatedPullRequests(first: 20) {
+            nodes {
+              url
+            }
+          }
+        }
+      }
+    }
+  }`
+
+  for (const c of commits) {
+    const sha = c.sha
+    const resp = await octokit.graphql<{
+      repository?: {
+        object?: {
+          associatedPullRequests?: {
+            nodes?: { url?: string }[]
+          }
+        }
+      }
+    }>(commitQuery, {
       owner: githubOrg,
       repo: githubRepo,
-      tag: versionName
+      oid: sha
+    })
+    const prs = resp?.repository?.object?.associatedPullRequests?.nodes || []
+    for (const pr of prs) {
+      if (pr?.url) prUrls.add(pr.url)
+    }
+  }
+
+  core.info(`Discovered ${prUrls.size} unique PR URL(s) in commits.`)
+  return Array.from(prUrls.values())
+}
+
+async function compareCommitsBetweenReleases(
+  octokit: Octokit,
+  githubOrg: string,
+  githubRepo: string,
+  previousReleaseTag: string,
+  versionName: string
+) {
+  const compare = await octokit.repos.compareCommits({
+    owner: githubOrg,
+    repo: githubRepo,
+    base: previousReleaseTag,
+    head: versionName
+  })
+
+  const commits = compare.data.commits || []
+  core.info(
+    `Found ${commits.length} commit(s) unique to ${versionName} over ${previousReleaseTag}. Fetching associated PRs...`
+  )
+
+  return commits.map((c) => ({ sha: c.sha }))
+}
+
+async function getPreviousReleaseTag(
+  octokit: Octokit,
+  githubOrg: string,
+  githubRepo: string,
+  createdAt: string,
+  versionName: string
+) {
+  let page = 1
+  const perPage = 100
+  let previousReleaseTag: string | undefined
+
+  while (!previousReleaseTag) {
+    const releasesPage = await octokit.repos.listReleases({
+      owner: githubOrg,
+      repo: githubRepo,
+      per_page: perPage,
+      page
     })
 
-    const releaseBody: string | null | undefined = response.data.body
-    if (!releaseBody) {
-      core.info(
-        `Release ${versionName} has no description body to parse for PRs.`
-      )
-      return []
+    const candidates = releasesPage.data
+      .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
+      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))
+
+    if (candidates.length > 0) {
+      previousReleaseTag = candidates[0].tag_name
+      break
     }
 
-    const prUrls: string[] = []
-    const fullUrlRegex = new RegExp(
-      `https://github.com/${githubOrg}/${githubRepo}/pull/(\\d+)`,
-      'g'
-    )
-    let match: RegExpExecArray | null
-    while ((match = fullUrlRegex.exec(releaseBody)) !== null) {
-      prUrls.push(match[0])
+    if (releasesPage.data.length < perPage) {
+      break
     }
 
-    const prNumberRegex = /(?:^|\W)#(\d+)(?!\w)/g
-    while ((match = prNumberRegex.exec(releaseBody)) !== null) {
-      const prNumber = match[1]
-      prUrls.push(
-        `https://github.com/${githubOrg}/${githubRepo}/pull/${prNumber}`
-      )
-    }
-
-    if (prUrls.length > 0) {
-      core.info(
-        `Found ${prUrls.length} potential PRs in release ${versionName} description.`
-      )
-    } else {
-      core.info(`No PR URLs found in release ${versionName} description.`)
-    }
-
-    return [...new Set(prUrls)]
-  } catch (error: any) {
-    core.info(
-      `Error fetching release ${versionName} from GitHub: ` + error?.message ||
-        error
-    )
-    if (error?.status === 404) {
-      core.info(
-        `Release tag '${versionName}' not found in ${githubOrg}/${githubRepo}.`
-      )
-    } else if (error?.request) {
-      core.info('GitHub API request failed:' + error.request)
-    }
-    return []
+    page += 1
   }
+
+  return previousReleaseTag
+}
+
+async function fetchFullHistoryPRs(
+  client: Octokit,
+  owner: string,
+  repo: string,
+  tag: string
+) {
+  const historyQuery = `
+    query ReleaseCommitsAndPRUrls(
+      $owner: String!
+      $repo: String!
+      $tag: String!
+      $commitsFirst: Int!
+      $commitsCursor: String
+    ) {
+      repository(owner: $owner, name: $repo) {
+        release(tagName: $tag) {
+          tagCommit {
+            ... on Commit {
+              history(first: $commitsFirst, after: $commitsCursor) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  associatedPullRequests(first: 20) {
+                    nodes { url }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `
+
+  let cursor: string | undefined
+  const prSet = new Set<string>()
+  let page = 0
+  const pageSize = 100
+
+  interface HistoryQueryResponse {
+    repository?: {
+      release?: {
+        tagCommit?: {
+          history?: {
+            pageInfo?: {
+              hasNextPage?: boolean
+              endCursor?: string
+            }
+            nodes?: {
+              associatedPullRequests?: {
+                nodes?: { url?: string }[]
+              }
+            }[]
+          }
+        }
+      }
+    }
+  }
+
+  while (true) {
+    page += 1
+
+    const resp = await client.graphql<HistoryQueryResponse>(historyQuery, {
+      owner,
+      repo,
+      tag,
+      commitsFirst: pageSize,
+      commitsCursor: cursor
+    })
+
+    const history = resp?.repository?.release?.tagCommit?.history
+    if (!history) {
+      break
+    }
+
+    for (const commit of history.nodes || []) {
+      const prs = commit?.associatedPullRequests?.nodes || []
+      for (const pr of prs) {
+        if (pr?.url) prSet.add(pr.url)
+      }
+    }
+
+    core.info(
+      `Full history page ${page} processed; accumulated ${prSet.size} unique PR URL(s).`
+    )
+
+    if (!history.pageInfo?.hasNextPage) {
+      break
+    }
+    cursor = history.pageInfo.endCursor
+  }
+
+  core.info(
+    `Full history traversal complete; discovered ${prSet.size} unique PR URL(s).`
+  )
+
+  return Array.from(prSet.values())
 }
