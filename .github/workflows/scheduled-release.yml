@@ -28,7 +28,7 @@ jobs:
         uses: actions/github-script@v8
         if: steps.get-release.outputs.found == 'true'
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.CI_GITHUB_TOKEN }}
           script: |
             const { data: release } = await github.rest.repos.updateRelease({
               owner: context.repo.owner,
