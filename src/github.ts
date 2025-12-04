@@ -145,7 +145,12 @@ async function getPreviousReleaseTag(
     })
 
     const candidates = releasesPage.data
-      .filter((r) => r.created_at < createdAt && r.tag_name !== versionName)
+      .filter(
+        (r) =>
+          r.created_at < createdAt &&
+          r.tag_name !== versionName &&
+          r.published_at != null
+      )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))
 
     if (candidates.length > 0) {
